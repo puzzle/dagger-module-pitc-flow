@@ -14,9 +14,9 @@ type GenericPipeline struct{}
 
 // Returns a file containing the results of the lint command
 func (m *GenericPipeline) Lint(
-    // Container to run the lint command
-    container *dagger.Container,
-    // Path to file containing lint results
+	// Container to run the lint command
+	container *dagger.Container,
+	// Path to file containing lint results
 	results string,
 ) *dagger.File {
 	return container.File(results)
@@ -24,9 +24,9 @@ func (m *GenericPipeline) Lint(
 
 // Returns a directory containing the results of the test command
 func (m *GenericPipeline) Test(
-    // Container to run the test command
-    container *dagger.Container,
-    // Path to directory containing test results
+	// Container to run the test command
+	container *dagger.Container,
+	// Path to directory containing test results
 	results string,
 ) *dagger.Directory {
 	return container.Directory(results)
@@ -97,14 +97,32 @@ func (m *GenericPipeline) PublishToDeptrack(
 }
 
 // Publish the provided Container to the provided registry
-func (m *GenericPipeline) Publish(ctx context.Context, container *dagger.Container, registryAddress string) (string, error) {
+func (m *GenericPipeline) Publish(
+	ctx context.Context,
+	// Container to publish
+	container *dagger.Container,
+	// Registry address to publish to - formatted as [host]/[user]/[repo]:[tag]
+	registryAddress string,
+	// Username of the registry's account
+	// +optional
+	// +default=""
+	registryUsername string,
+    // API key, password or token to authenticate to the registry
+	// +optional
+	registryPassword *dagger.Secret,
+) (string, error) {
+	if registryUsername != "" && registryPassword != nil {
+		container = container.WithRegistryAuth(registryAddress, registryUsername, registryPassword)
+	}
 	return container.Publish(ctx, registryAddress)
 }
 
 // Sign the published image using cosign (keyless)
 func (m *GenericPipeline) Sign(
 	ctx context.Context,
+	// Username of the registry's account
 	registryUsername string,
+	// API key, password or token to authenticate to the registry
 	registryPassword *dagger.Secret,
 	// Container image digest to sign
 	digest string,
@@ -115,7 +133,9 @@ func (m *GenericPipeline) Sign(
 // Attests the SBOM using cosign (keyless)
 func (m *GenericPipeline) Attest(
 	ctx context.Context,
+    // Username of the registry's account
 	registryUsername string,
+	// API key, password or token to authenticate to the registry
 	registryPassword *dagger.Secret,
 	// Container image digest to attest
 	digest string,
