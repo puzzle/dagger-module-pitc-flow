@@ -26,6 +26,16 @@ func (m *GenericPipeline) Lint(
 		File(results)
 }
 
+// Returns a file containing the results of the lint command
+func (m *GenericPipeline) LintWithEntrypoint(
+    // Container to run the lint command
+    container *dagger.Container,
+    // Path to file containing lint results
+	results string,
+) *dagger.File {
+	return container.File(results)
+}
+
 // Returns a directory containing the results of the test command
 func (m *GenericPipeline) Test(
     // Container to run the test command
