@@ -1,27 +1,38 @@
-# repository-template
-Dieses Repo dient als Beispiel und Template für unsere Open Source Repos, und zeigt auf, was wir alles von unseren Repos erwarten.
+# Daggerverse Generic Pipeline Module
 
-## Sprache
+[Dagger](https://dagger.io/) module for [daggerverse](https://daggerverse.dev/) providing generic CI pipeline functionality.
 
-Für öffentliche Projekte sollte immer Englisch genutzt werden. Wir können in unserer Doku für uns selbst Deutsch nutzen,
-es ist aber einfacher, wenn von Anfang an alles in Englisch gehalten wird, und nicht gemischt wird bzw irgendwann übersetzt
-werden muss.
+The Dagger module is located in the [generic-pipeline](./generic-pipeline/) directory.
 
-## Github-Settings
+## Usage
 
-### Branch Protection
-Setzt dies mindestens so, dass nur in `main` gemerged werden kann, wenn ein PR erstellt wurde und dieser mindestens 1 Approval hat - und
-dass auch Admins dies nicht bypassen dürfen. Wenn ihr direkt aus Github deployed, dann kann es sich auch lohnen, merges nur zuzulassen,
-wenn die Deployments und/oder CI Pipelines erfolgreich waren.
+Basic usage guide.
 
-## Dateien
+The [generic-pipeline](./generic-pipeline/) directory contains a [daggerverse](https://daggerverse.dev/) [Dagger](https://dagger.io/) module.
 
-* README - was macht dieses Repo, wie kann man es selber verwenden? Kann gesplittet werden, wenn es zu lang wird.
-* LICENSE - alle Repos müssen sauber lizenziert sein. Der OSS-Guide in Docs hat Tips, und die Branch-Members können auch helfen.
-* CODEOWNERS - wer ist Ansprechpartner? Wenn hier niemand eingetragen ist, oder nur noch Leute, die nicht bei Puzzle sind, dann wird's archiviert...
+Check the official Dagger Module documentation: https://docs.dagger.io/
 
-## Weitergedacht
+The [Dagger CLI](https://docs.dagger.io/cli) is needed.
 
-Wenn eine Community aufgebaut wird, wird auch ein Code Of Conduct notwendig. Für etwas wie ein TechLab z.B. ist das aber nicht notwendig.
+### Functions
 
-OpenSSF Badges u.ä.
+List all functions of the module. This command is provided by the [Dagger CLI](https://docs.dagger.io/reference/cli/).
+
+```bash
+dagger functions -m ./generic-pipeline/
+```
+
+The generic-pipeline module is referenced locally.
+
+## Development
+
+Basic development guide.
+
+### Set up Dagger module
+
+```bash
+# enter into the module's directory
+cd generic-pipeline/
+# initialize the module
+dagger develop --sdk go
+```
