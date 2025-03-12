@@ -16,20 +16,6 @@ type GenericPipeline struct{}
 func (m *GenericPipeline) Lint(
     // Container to run the lint command
     container *dagger.Container,
-    // Lint command to run
-    command []string,
-    // Path to file containing lint results
-	results string,
-) *dagger.File {
-	return container.
-		WithExec(command).
-		File(results)
-}
-
-// Returns a file containing the results of the lint command
-func (m *GenericPipeline) LintWithEntrypoint(
-    // Container to run the lint command
-    container *dagger.Container,
     // Path to file containing lint results
 	results string,
 ) *dagger.File {
