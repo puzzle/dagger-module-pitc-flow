@@ -16,10 +16,14 @@ type GenericPipeline struct{}
 func (m *GenericPipeline) Lint(
     // Container to run the lint command
     container *dagger.Container,
+    // Lint command to run
+    lintCommand []string,
     // Path to file containing lint results
 	lintResults string,
 ) *dagger.File {
-	return container.File(lintResults)
+	return container.
+		WithExec(lintCommand).
+		File(lintResults)
 }
 
 // Returns a Container built from the Dockerfile in the provided Directory
