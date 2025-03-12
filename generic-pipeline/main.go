@@ -26,14 +26,10 @@ func (m *GenericPipeline) Lint(
 func (m *GenericPipeline) Test(
     // Container to run the test command
     container *dagger.Container,
-    // Test command to run
-    command []string,
     // Path to directory containing test results
 	results string,
 ) *dagger.Directory {
-	return container.
-		WithExec(command).
-		Directory(results)
+	return container.Directory(results)
 }
 
 // Returns a Container built from the Dockerfile in the provided Directory
