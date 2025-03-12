@@ -17,13 +17,13 @@ func (m *GenericPipeline) Lint(
     // Container to run the lint command
     container *dagger.Container,
     // Lint command to run
-    lintCommand []string,
+    command []string,
     // Path to file containing lint results
-	lintResults string,
+	results string,
 ) *dagger.File {
 	return container.
-		WithExec(lintCommand).
-		File(lintResults)
+		WithExec(command).
+		File(results)
 }
 
 // Returns a directory containing the results of the test command
@@ -31,13 +31,13 @@ func (m *GenericPipeline) Test(
     // Container to run the test command
     container *dagger.Container,
     // Test command to run
-    testCommand []string,
+    command []string,
     // Path to directory containing test results
-	testResults string,
+	results string,
 ) *dagger.Directory {
 	return container.
-		WithExec(testCommand).
-		Directory(testResults)
+		WithExec(command).
+		Directory(results)
 }
 
 // Returns a Container built from the Dockerfile in the provided Directory
