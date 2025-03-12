@@ -21,13 +21,13 @@ func (m *GenericPipeline) Build(_ context.Context, dir *dagger.Directory) *dagge
 		DockerBuild()
 }
 
-// Builds the container and creates an SBOM for it
+// Builds the container and creates a SBOM for it
 func (m *GenericPipeline) SbomBuild(ctx context.Context, dir *dagger.Directory) *dagger.File {
 	container := m.Build(ctx, dir)
 	return m.Sbom(container)
 }
 
-// Creates an SBOM for the container
+// Creates a SBOM for the container
 func (m *GenericPipeline) Sbom(container *dagger.Container) *dagger.File {
 	trivy_container := dag.Container().
 		From("aquasec/trivy").
@@ -38,11 +38,9 @@ func (m *GenericPipeline) Sbom(container *dagger.Container) *dagger.File {
 		DatabaseRepository: "public.ecr.aws/aquasecurity/trivy-db",
 	})
 
-	sbom := trivy.Container(container).
+	return trivy.Container(container).
 		Report("cyclonedx").
 		WithName("cyclonedx.json")
-
-	return sbom
 }
 
 // Scans the SBOM for vulnerabilities
@@ -83,7 +81,7 @@ func (m *GenericPipeline) Publish(ctx context.Context, container *dagger.Contain
 	return container.Publish(ctx, registryAddress)
 }
 
-// Sign the published image using cosign
+// Sign the published image using cosign (keyless)
 func (m *GenericPipeline) Sign(
 	ctx context.Context,
 	registryUsername string,
@@ -94,7 +92,7 @@ func (m *GenericPipeline) Sign(
 	return dag.Cosign().SignKeyless(ctx, digest, dagger.CosignSignKeylessOpts{RegistryUsername: registryUsername, RegistryPassword: registryPassword})
 }
 
-// Attests the SBOM using cosign
+// Attests the SBOM using cosign (keyless)
 func (m *GenericPipeline) Attest(
 	ctx context.Context,
 	registryUsername string,
