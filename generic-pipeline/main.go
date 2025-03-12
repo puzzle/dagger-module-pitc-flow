@@ -26,6 +26,20 @@ func (m *GenericPipeline) Lint(
 		File(lintResults)
 }
 
+// Returns a directory containing the results of the test command
+func (m *GenericPipeline) Test(
+    // Container to run the test command
+    container *dagger.Container,
+    // Test command to run
+    testCommand []string,
+    // Path to directory containing test results
+	testResults string,
+) *dagger.Directory {
+	return container.
+		WithExec(testCommand).
+		Directory(testResults)
+}
+
 // Returns a Container built from the Dockerfile in the provided Directory
 func (m *GenericPipeline) Build(_ context.Context, dir *dagger.Directory) *dagger.Container {
 	return dag.Container().
