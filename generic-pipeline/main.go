@@ -118,7 +118,7 @@ func (m *GenericPipeline) Publish(
 	// +optional
 	// +default=""
 	registryUsername string,
-    // API key, password or token to authenticate to the registry
+	// API key, password or token to authenticate to the registry
 	// +optional
 	registryPassword *dagger.Secret,
 ) (string, error) {
@@ -144,7 +144,7 @@ func (m *GenericPipeline) Sign(
 // Attests the SBOM using cosign (keyless)
 func (m *GenericPipeline) Attest(
 	ctx context.Context,
-    // Username of the registry's account
+	// Username of the registry's account
 	registryUsername string,
 	// API key, password or token to authenticate to the registry
 	registryPassword *dagger.Secret,
@@ -166,15 +166,15 @@ func (m *GenericPipeline) Run(
 	// lint container
 	lintContainer *dagger.Container,
 	// lint report file name "lint.json"
-    lintReport string,
+	lintReport string,
 	// sast container
 	sastContainer *dagger.Container,
 	// security scan report file name "/app/brakeman-output.tabs"
-    sastReport string,
+	sastReport string,
 	// test container
-    testContainer *dagger.Container,
+	testContainer *dagger.Container,
 	// test report folder name "/mnt/test/reports"
-    testReport string,
+	testReport string,
 	// registry username for publishing the contaner image
 	registryUsername string,
 	// registry password for publishing the container image
