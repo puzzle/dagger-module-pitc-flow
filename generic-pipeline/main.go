@@ -8,6 +8,7 @@ import (
 	"context"
 	"dagger/generic-pipeline/internal/dagger"
 	"fmt"
+	"sync"
 )
 
 type GenericPipeline struct{}
@@ -30,6 +31,16 @@ func (m *GenericPipeline) Test(
 	results string,
 ) *dagger.Directory {
 	return container.Directory(results)
+}
+
+// Returns a file containing the results of the security scan
+func (m *GenericPipeline) Sast(
+	// Container to run the security scan
+	container *dagger.Container,
+	// Path to directory containing test results
+	results string,
+) *dagger.Directory {
+	return container.File(results)
 }
 
 // Returns a Container built from the Dockerfile in the provided Directory
@@ -145,4 +156,120 @@ func (m *GenericPipeline) Attest(
 	sbomType string,
 ) (string, error) {
 	return dag.Cosign().AttestKeyless(ctx, digest, predicate, dagger.CosignAttestKeylessOpts{RegistryUsername: registryUsername, RegistryPassword: registryPassword, SbomType: sbomType})
+}
+
+// Executes all the steps and returns a directory with the results
+func (m *GenericPipeline) Run(
+	ctx context.Context,
+	// source directory
+	dir *dagger.Directory,
+	// lint container
+	lintContainer *dagger.Container,
+	// lint report file name "lint.json"
+    lintReport string,
+	// sast container
+	sastContainer *dagger.Container,
+	// security scan report file name "/app/brakeman-output.tabs"
+    sastReport string,
+	// test container
+    testContainer *dagger.Container,
+	// test report folder name "/mnt/test/reports"
+    testReports string,
+	// registry username for publishing the contaner image
+	registryUsername string,
+	// registry password for publishing the container image
+	registryPassword *dagger.Secret,
+	// registry address registry/repository/image:tag
+	registryAddress string,
+	// deptrack address for publishing the SBOM https://deptrack.example.com/api/v1/bom
+	dtAddress string,
+	// deptrack project UUID
+	dtProjectUUID string,
+	// deptrack API key
+	dtApiKey *dagger.Secret,
+	// ignore linter failures
+	// +optional
+	// +default=false
+	pass bool,
+) (*dagger.Directory, error) {
+	var wg sync.WaitGroup
+	wg.Add(5)
+
+	var lintOutput = func() *dagger.File {
+		defer wg.Done()
+		return m.Lint(lintContainer, lintReport)
+	}()
+
+	var securityScan = func() *dagger.File {
+		defer wg.Done()
+		return m.Sast(sastContainer, sastReport)
+	}()
+
+	var vulnerabilityScan = func() *dagger.File {
+		defer wg.Done()
+		return m.Vulnscan(m.SbomBuild(dir))
+	}()
+
+	var image = func() *dagger.Container {
+		defer wg.Done()
+		return m.Build(dir)
+	}()
+
+	var testReports = func() *dagger.Directory {
+		defer wg.Done()
+		return m.Test(testContainer, testReports)
+	}()
+
+	// This Blocks the execution until its counter become 0
+	wg.Wait()
+
+	// Get the names of the files to fail on errors of the functions
+	lintOutputName, err := lintOutput.Name(ctx)
+	if err != nil {
+		return nil, err
+	}
+	securityScanName, err := securityScan.Name(ctx)
+	if err != nil {
+		return nil, err
+	}
+	vulnerabilityScanName, err := vulnerabilityScan.Name(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// After linting, scanning and testing is done, we can create the sbom and publish the image
+	wg.Add(2)
+
+	var sbom = func() *dagger.File {
+		defer wg.Done()
+		return m.Sbom(image)
+	}()
+
+	digest, err := func() (string, error) {
+		defer wg.Done()
+		return m.Publish(ctx, image, registryAddress, dagger.GenericPipelinePublishOpts{RegistryUsername: registryUsername, RegistryPassword: registryPassword})
+	}()
+
+	// This Blocks the execution until its counter become 0
+	wg.Wait()
+
+	// After publishing the image, we can sign and attest
+	if err != nil {
+		return nil, err
+	}
+
+	m.PublishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
+	m.Sign(ctx, registryUsername, registryPassword, digest)
+	m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
+
+	sbomName, _ := sbom.Name(ctx)
+	result_container := dag.Container().
+		WithWorkdir("/tmp/out").
+		WithFile(fmt.Sprintf("/tmp/out/lint/%s", lintOutputName), lintOutput).
+		WithFile(fmt.Sprintf("/tmp/out/scan/%s", securityScanName), securityScan).
+		WithDirectory("/tmp/out/unit-tests/", testReports).
+		WithFile(fmt.Sprintf("/tmp/out/vuln/%s", vulnerabilityScanName), vulnerabilityScan).
+		WithFile(fmt.Sprintf("/tmp/out/sbom/%s", sbomName), sbom)
+	return result_container.
+		Directory("."), err
 }
