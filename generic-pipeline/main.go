@@ -37,9 +37,9 @@ func (m *GenericPipeline) Test(
 func (m *GenericPipeline) Sast(
 	// Container to run the security scan
 	container *dagger.Container,
-	// Path to directory containing test results
+	// Path to file containing the results of the security scan
 	results string,
-) *dagger.Directory {
+) *dagger.File {
 	return container.File(results)
 }
 
@@ -174,7 +174,7 @@ func (m *GenericPipeline) Run(
 	// test container
     testContainer *dagger.Container,
 	// test report folder name "/mnt/test/reports"
-    testReports string,
+    testReport string,
 	// registry username for publishing the contaner image
 	registryUsername string,
 	// registry password for publishing the container image
@@ -207,17 +207,17 @@ func (m *GenericPipeline) Run(
 
 	var vulnerabilityScan = func() *dagger.File {
 		defer wg.Done()
-		return m.Vulnscan(m.SbomBuild(dir))
+		return m.Vulnscan(m.SbomBuild(ctx, dir))
 	}()
 
 	var image = func() *dagger.Container {
 		defer wg.Done()
-		return m.Build(dir)
+		return m.Build(ctx, dir)
 	}()
 
 	var testReports = func() *dagger.Directory {
 		defer wg.Done()
-		return m.Test(testContainer, testReports)
+		return m.Test(testContainer, testReport)
 	}()
 
 	// This Blocks the execution until its counter become 0
@@ -247,7 +247,7 @@ func (m *GenericPipeline) Run(
 
 	digest, err := func() (string, error) {
 		defer wg.Done()
-		return m.Publish(ctx, image, registryAddress, dagger.GenericPipelinePublishOpts{RegistryUsername: registryUsername, RegistryPassword: registryPassword})
+		return m.Publish(ctx, image, registryAddress, registryUsername, registryPassword)
 	}()
 
 	// This Blocks the execution until its counter become 0
