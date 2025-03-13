@@ -165,17 +165,17 @@ func (m *GenericPipeline) Run(
 	dir *dagger.Directory,
 	// lint container
 	lintContainer *dagger.Container,
-	// lint report file name "lint.json"
+	// lint report file name e.g. "lint.json"
 	lintReport string,
 	// sast container
 	sastContainer *dagger.Container,
-	// security scan report file name "/app/brakeman-output.tabs"
+	// security scan report file name e.g. "/app/brakeman-output.tabs"
 	sastReport string,
 	// test container
 	testContainer *dagger.Container,
-	// test report folder name "/mnt/test/reports"
-	testReport string,
-	// registry username for publishing the contaner image
+	// test report folder name e.g. "/mnt/test/reports"
+	testReportDir string,
+	// registry username for publishing the container image
 	registryUsername string,
 	// registry password for publishing the container image
 	registryPassword *dagger.Secret,
@@ -217,7 +217,7 @@ func (m *GenericPipeline) Run(
 
 	var testReports = func() *dagger.Directory {
 		defer wg.Done()
-		return m.Test(testContainer, testReport)
+		return m.Test(testContainer, testReportDir)
 	}()
 
 	// This Blocks the execution until its counter become 0
