@@ -1,20 +1,23 @@
-// A module containing GenericPipeline functions
+// PITCFlow - Pipeline Integrity, Trust & Compliance
 //
-// This module contains functions that can be used in multiple pipelines
+// Secure and compliant software delivery with trust and integrity. 🚀
+//
+// This module contains ready to use pipelines.
+// They build and deliver your software / project with security and compliance out of the box.
 
 package main
 
 import (
 	"context"
-	"dagger/generic-pipeline/internal/dagger"
+	"dagger/pitc-flow/internal/dagger"
 	"fmt"
 	"sync"
 )
 
-type GenericPipeline struct{}
+type PitcFlow struct{}
 
 // Returns a file containing the results of the lint command
-func (m *GenericPipeline) Lint(
+func (m *PitcFlow) Lint(
 	// Container to run the lint command
 	container *dagger.Container,
 	// Path to file containing lint results
@@ -24,7 +27,7 @@ func (m *GenericPipeline) Lint(
 }
 
 // Returns a directory containing the results of the test command
-func (m *GenericPipeline) Test(
+func (m *PitcFlow) Test(
 	// Container to run the test command
 	container *dagger.Container,
 	// Path to directory containing test results
@@ -34,7 +37,7 @@ func (m *GenericPipeline) Test(
 }
 
 // Returns a file containing the results of the security scan
-func (m *GenericPipeline) Sast(
+func (m *PitcFlow) Sast(
 	// Container to run the security scan
 	container *dagger.Container,
 	// Path to file containing the results of the security scan
@@ -44,7 +47,7 @@ func (m *GenericPipeline) Sast(
 }
 
 // Returns a Container built from the Dockerfile in the provided Directory
-func (m *GenericPipeline) Build(_ context.Context, dir *dagger.Directory) *dagger.Container {
+func (m *PitcFlow) Build(_ context.Context, dir *dagger.Directory) *dagger.Container {
 	return dag.Container().
 		WithDirectory("/src", dir).
 		WithWorkdir("/src").
@@ -53,13 +56,13 @@ func (m *GenericPipeline) Build(_ context.Context, dir *dagger.Directory) *dagge
 }
 
 // Builds the container and creates a SBOM for it
-func (m *GenericPipeline) SbomBuild(ctx context.Context, dir *dagger.Directory) *dagger.File {
+func (m *PitcFlow) SbomBuild(ctx context.Context, dir *dagger.Directory) *dagger.File {
 	container := m.Build(ctx, dir)
 	return m.Sbom(container)
 }
 
 // Creates a SBOM for the container
-func (m *GenericPipeline) Sbom(container *dagger.Container) *dagger.File {
+func (m *PitcFlow) Sbom(container *dagger.Container) *dagger.File {
 	trivy_container := dag.Container().
 		From("aquasec/trivy").
 		WithEnvVariable("TRIVY_JAVA_DB_REPOSITORY", "public.ecr.aws/aquasecurity/trivy-java-db")
@@ -75,7 +78,7 @@ func (m *GenericPipeline) Sbom(container *dagger.Container) *dagger.File {
 }
 
 // Scans the SBOM for vulnerabilities
-func (m *GenericPipeline) Vulnscan(sbom *dagger.File) *dagger.File {
+func (m *PitcFlow) Vulnscan(sbom *dagger.File) *dagger.File {
 	trivy_container := dag.Container().
 		From("aquasec/trivy").
 		WithEnvVariable("TRIVY_JAVA_DB_REPOSITORY", "public.ecr.aws/aquasecurity/trivy-java-db")
@@ -89,7 +92,7 @@ func (m *GenericPipeline) Vulnscan(sbom *dagger.File) *dagger.File {
 }
 
 // Publish cyclonedx SBOM to Deptrack
-func (m *GenericPipeline) PublishToDeptrack(
+func (m *PitcFlow) PublishToDeptrack(
 	ctx context.Context,
 	// SBOM file
 	sbom *dagger.File,
@@ -108,7 +111,7 @@ func (m *GenericPipeline) PublishToDeptrack(
 }
 
 // Publish the provided Container to the provided registry
-func (m *GenericPipeline) Publish(
+func (m *PitcFlow) Publish(
 	ctx context.Context,
 	// Container to publish
 	container *dagger.Container,
@@ -129,7 +132,7 @@ func (m *GenericPipeline) Publish(
 }
 
 // Sign the published image using cosign (keyless)
-func (m *GenericPipeline) Sign(
+func (m *PitcFlow) Sign(
 	ctx context.Context,
 	// Username of the registry's account
 	registryUsername string,
@@ -142,7 +145,7 @@ func (m *GenericPipeline) Sign(
 }
 
 // Attests the SBOM using cosign (keyless)
-func (m *GenericPipeline) Attest(
+func (m *PitcFlow) Attest(
 	ctx context.Context,
 	// Username of the registry's account
 	registryUsername string,
@@ -159,7 +162,7 @@ func (m *GenericPipeline) Attest(
 }
 
 // Executes all the steps and returns a directory with the results
-func (m *GenericPipeline) Run(
+func (m *PitcFlow) Run(
 	ctx context.Context,
 	// source directory
 	dir *dagger.Directory,
