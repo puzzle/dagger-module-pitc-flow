@@ -1,14 +1,19 @@
-# Daggerverse Generic Pipeline Module
+# Daggerverse PITCFlow Module
 
-[Dagger](https://dagger.io/) module for [daggerverse](https://daggerverse.dev/) providing generic CI pipeline functionality.
+PITCFlow - Pipeline Integrity, Trust & Compliance
 
-The Dagger module is located in the [generic-pipeline](./generic-pipeline/) directory.
+Secure and compliant software delivery with trust and integrity. 🚀
+
+[Dagger](https://dagger.io/) module for [daggerverse](https://daggerverse.dev/) providing ready to use pipelines.
+They build and deliver your software / project with security and compliance out of the box.
+
+The Dagger module is located in the [pitc-flow](./pitc-flow/) directory.
 
 ## Usage
 
 Basic usage guide.
 
-The [generic-pipeline](./generic-pipeline/) directory contains a [daggerverse](https://daggerverse.dev/) [Dagger](https://dagger.io/) module.
+The [pitc-flow](./pitc-flow/) directory contains a [daggerverse](https://daggerverse.dev/) [Dagger](https://dagger.io/) module.
 
 Check the official Dagger Module documentation: https://docs.dagger.io/
 
@@ -19,20 +24,17 @@ The [Dagger CLI](https://docs.dagger.io/cli) is needed.
 List all functions of the module. This command is provided by the [Dagger CLI](https://docs.dagger.io/reference/cli/).
 
 ```bash
-dagger functions -m ./generic-pipeline/
+dagger functions -m ./pitc-flow/
 ```
 
-The generic-pipeline module is referenced locally.
+The pitc-flow module is referenced locally.
 
 ## Development
 
 Basic development guide.
 
-### Set up Dagger module
+### Update the Dagger module
 
 ```bash
-# enter into the module's directory
-cd generic-pipeline/
-# initialize the module
-dagger develop --sdk go
+dagger -m pitc-flow/ develop
 ```
