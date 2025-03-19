@@ -259,11 +259,11 @@ func (m *PitcFlow) Run(
 	// After publishing the image, we can sign and attest
 	if err != nil {
 		return nil, err
-	}
-
-	m.PublishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
-	m.Sign(ctx, registryUsername, registryPassword, digest)
-	m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
+    } else {
+        m.PublishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
+        m.Sign(ctx, registryUsername, registryPassword, digest)
+        m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
+    }
 
 	sbomName, _ := sbom.Name(ctx)
 	result_container := dag.Container().
