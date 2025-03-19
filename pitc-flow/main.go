@@ -256,13 +256,33 @@ func (m *PitcFlow) Run(
 	// This Blocks the execution until its counter become 0
 	wg.Wait()
 
-	// After publishing the image, we can sign and attest
 	if err != nil {
 		return nil, err
     } else {
-        m.PublishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
-        m.Sign(ctx, registryUsername, registryPassword, digest)
-        m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
+        // After publishing the image, we can sign and attest
+        wg.Add(3)
+
+    	_, err = func() (string, error) {
+    		defer wg.Done()
+    		return m.PublishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
+    	}()
+
+    	_, err = func() (string, error) {
+    		defer wg.Done()
+    		return m.Sign(ctx, registryUsername, registryPassword, digest)
+    	}()
+
+    	_, err = func() (string, error) {
+    		defer wg.Done()
+    		return m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
+    	}()
+
+        // This Blocks the execution until its counter become 0
+        wg.Wait()
+    }
+
+	if err != nil {
+		return nil, err
     }
 
 	sbomName, _ := sbom.Name(ctx)
