@@ -3,7 +3,8 @@ package main
 import (
     "context"
 	"dagger/tests/internal/dagger"
-	"fmt"
+    "fmt"
+    "strings"
 	"time"
 
 	"github.com/sourcegraph/conc/pool"
@@ -20,11 +21,13 @@ func (m *Tests) All(ctx context.Context) error {
 	p.Go(m.Vulnscan)
 	p.Go(m.Publish)
 	p.Go(m.PublishWithCredentials)
-	p.Go(m.Run)
+	p.Go(m.Full)
+	p.Go(m.Flex)
 
 	return p.Wait()
 }
 
+// Sbom test.
 func (m *Tests) Sbom(_ context.Context) error {
 	container := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
 	if nil == dag.PitcFlow().Sbom(container) {
@@ -33,6 +36,7 @@ func (m *Tests) Sbom(_ context.Context) error {
 	return nil
 }
 
+// SbomBuild test.
 func (m *Tests) SbomBuild(_ context.Context) error {
 	directory := dag.CurrentModule().Source().Directory("./testdata")
 	if nil == dag.PitcFlow().SbomBuild(directory) {
@@ -41,6 +45,7 @@ func (m *Tests) SbomBuild(_ context.Context) error {
 	return nil
 }
 
+// Vulnscan test.
 func (m *Tests) Vulnscan(_ context.Context) error {
 	container := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
 	sbom := dag.PitcFlow().Sbom(container)
@@ -50,6 +55,7 @@ func (m *Tests) Vulnscan(_ context.Context) error {
 	return nil
 }
 
+// Publish test.
 func (m *Tests) Publish(ctx context.Context) error {
 	container := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
 	_, err := dag.PitcFlow().Publish(ctx, container, "ttl.sh/test/alpine:latest")
@@ -59,6 +65,7 @@ func (m *Tests) Publish(ctx context.Context) error {
 	return nil
 }
 
+// PublishWithCredentials test.
 func (m *Tests) PublishWithCredentials(ctx context.Context) error {
 	container := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
 	secret := dag.SetSecret("password", "verySecret")
@@ -74,25 +81,29 @@ func (m *Tests) PublishWithCredentials(ctx context.Context) error {
 	return nil
 }
 
-func (m *Tests) Run(_ context.Context) error {
+// Full test.
+func (m *Tests) Full(_ context.Context) error {
 	lintContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
 		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint.txt"})
 	sastContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
 		WithExec([]string{"sh", "-c", "echo 'sast' > /tmp/sast.txt"})
 	testContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
-		WithExec([]string{"sh", "-c", "mkdir -p /tmp/tests"})
+		WithExec([]string{"sh", "-c", "mkdir -p /tmp/uTests"})
+	integrationTestContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+		WithExec([]string{"sh", "-c", "mkdir -p /tmp/iTests"})
 
 	dir := dag.CurrentModule().Source().Directory("./testdata")
 	lintReport := "/tmp/lint.txt"
 	sastReport := "/tmp/sast.txt"
-	testReportDir := "/tmp/tests"
+	testReportDir := "/tmp/uTests"
+	integrationTestReportDir := "/tmp/iTests"
 	registryUsername := "joe"
 	secret := dag.SetSecret("password", "verySecret")
 	registryAddress := "ttl.sh/test/alpine:latest"
 	dtAddress := "ttl.sh"
 	dtProjectUUID := "12345678-1234-1234-1234-123456789012"
 
-	directory := dag.PitcFlow().Run(
+	directory := dag.PitcFlow().Full(
 		dir,
 		lintContainer,
 		lintReport,
@@ -100,6 +111,8 @@ func (m *Tests) Run(_ context.Context) error {
 		sastReport,
 		testContainer,
 		testReportDir,
+		integrationTestContainer,
+		integrationTestReportDir,
 		registryUsername,
 		secret,
 		registryAddress,
@@ -112,12 +125,54 @@ func (m *Tests) Run(_ context.Context) error {
 		return fmt.Errorf("should run the pipeline and return a directory")
 	}
 
-	_, err := directory.Entries(context.Background())
+	files, err := directory.Entries(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to list files in directory: %w", err)
 	}
 
-	return nil
+	for _, file := range files {
+		if strings.Contains(file, "status.txt") {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("status.txt was missing from all files: %v", files)
+}
+
+// Flex test.
+func (m *Tests) Flex(_ context.Context) error {
+	lintContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint.txt"})
+
+	dir := dag.CurrentModule().Source().Directory("./testdata")
+	lintReport := "/tmp/lint.txt"
+	registryUsername := "joe"
+	secret := dag.SetSecret("password", "verySecret")
+	registryAddress := "ttl.sh/test/alpine:latest"
+	dtAddress := "ttl.sh"
+	dtProjectUUID := "12345678-1234-1234-1234-123456789012"
+
+	directory := dag.PitcFlow().Flex(
+		dir,
+        dagger.PitcFlowFlexOpts{LintContainer: lintContainer, LintReport: lintReport, RegistryUsername: registryUsername, RegistryPassword: secret, RegistryAddress: registryAddress, DtAddress: dtAddress, DtProjectUUID: dtProjectUUID, DtAPIKey: secret},
+	)
+
+	if directory == nil {
+		return fmt.Errorf("should run the pipeline and return a directory")
+	}
+
+	files, err := directory.Entries(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to list files in directory: %w", err)
+	}
+
+	for _, file := range files {
+		if strings.Contains(file, "status.txt") {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("status.txt was missing from all files: %v", files)
 }
 
 func (m *Tests) uniqContainer(image string, randomString string) *dagger.Container {

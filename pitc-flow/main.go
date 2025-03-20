@@ -36,6 +36,16 @@ func (m *PitcFlow) Test(
 	return container.Directory(results)
 }
 
+// Returns a directory containing the results of the integration test command
+func (m *PitcFlow) IntTest(
+	// Container to run the integration test command
+	container *dagger.Container,
+	// Path to directory containing integration test results
+	results string,
+) *dagger.Directory {
+	return container.Directory(results)
+}
+
 // Returns a file containing the results of the security scan
 func (m *PitcFlow) Sast(
 	// Container to run the security scan
@@ -161,8 +171,228 @@ func (m *PitcFlow) Attest(
 	return dag.Cosign().AttestKeyless(ctx, digest, predicate, dagger.CosignAttestKeylessOpts{RegistryUsername: registryUsername, RegistryPassword: registryPassword, SbomType: sbomType})
 }
 
+// Executes only the desired steps and returns a directory with the results
+func (m *PitcFlow) Flex(
+	ctx context.Context,
+	// source directory
+	dir *dagger.Directory,
+	// lint container
+	// +optional
+	lintContainer *dagger.Container,
+	// lint report file name e.g. "lint.json"
+	// +optional
+	lintReport string,
+	// sast container
+	// +optional
+	sastContainer *dagger.Container,
+	// security scan report file name e.g. "/app/brakeman-output.tabs"
+	// +optional
+	sastReport string,
+	// test container
+	// +optional
+	testContainer *dagger.Container,
+	// test report folder name e.g. "/mnt/test/reports"
+	// +optional
+	testReportDir string,
+	// integration test container
+	// +optional
+	integrationTestContainer *dagger.Container,
+	// integration test report folder name e.g. "/mnt/int-test/reports"
+	// +optional
+	integrationTestReportDir string,
+	// registry username for publishing the container image
+	// +optional
+	registryUsername string,
+	// registry password for publishing the container image
+	// +optional
+	registryPassword *dagger.Secret,
+	// registry address registry/repository/image:tag
+	// +optional
+	registryAddress string,
+	// deptrack address for publishing the SBOM https://deptrack.example.com/api/v1/bom
+	// +optional
+	dtAddress string,
+	// deptrack project UUID
+	// +optional
+	dtProjectUUID string,
+	// deptrack API key
+	// +optional
+	dtApiKey *dagger.Secret,
+) (*dagger.Directory, error) {
+
+	prep := 2
+	doLint := shouldRunStep(lintContainer, lintReport)
+	doSast := shouldRunStep(sastContainer, sastReport)
+	doTest := shouldRunStep(testContainer, testReportDir)
+	doIntTest := shouldRunStep(integrationTestContainer, integrationTestReportDir)
+	prep += countTrue(doLint, doSast, doTest, doIntTest)
+
+	var wg sync.WaitGroup
+	wg.Add(prep)
+
+	var lintOutput *dagger.File
+	var securityScan *dagger.File
+	var testReports *dagger.Directory
+	var integrationTestReports *dagger.Directory
+	if doLint {
+		lintOutput = func() *dagger.File {
+			defer wg.Done()
+			return m.Lint(lintContainer, lintReport)
+		}()
+	}
+	if doSast {
+		securityScan = func() *dagger.File {
+			defer wg.Done()
+			return m.Sast(sastContainer, sastReport)
+		}()
+	}
+	if doTest {
+		testReports = func() *dagger.Directory {
+			defer wg.Done()
+			return m.Test(testContainer, testReportDir)
+		}()
+	}
+    if doIntTest {
+        integrationTestReports = func() *dagger.Directory {
+            defer wg.Done()
+            return m.IntTest(integrationTestContainer, integrationTestReportDir)
+        }()
+    }
+
+	var vulnerabilityScan = func() *dagger.File {
+		defer wg.Done()
+		return m.Vulnscan(m.SbomBuild(ctx, dir))
+	}()
+	var image = func() *dagger.Container {
+		defer wg.Done()
+		return m.Build(ctx, dir)
+	}()
+	// This Blocks the execution until its counter become 0
+	wg.Wait()
+
+	var err error
+	lintOutputName := ""
+	securityScanName := ""
+	// Get the names of the files to fail on errors of the functions
+	if doLint {
+		lintOutputName, err = lintOutput.Name(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if doSast {
+		securityScanName, err = securityScan.Name(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+	vulnerabilityScanName, err := vulnerabilityScan.Name(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var sbom *dagger.File
+	digest := ""
+	// After linting, scanning and testing is done, we are ready to create the sbom and publish the image
+	if registryAddress != "" && registryUsername != "" && registryPassword != nil {
+		wg.Add(2)
+		sbom = func() *dagger.File {
+			defer wg.Done()
+			return m.Sbom(image)
+		}()
+		digest, err = func() (string, error) {
+			defer wg.Done()
+			return m.Publish(ctx, image, registryAddress, registryUsername, registryPassword)
+		}()
+		// This Blocks the execution until its counter become 0
+		wg.Wait()
+	}
+
+	var doPublishToDeptrack bool
+	var doSign bool
+	var doAttest bool
+	// After publishing the image, we are ready to sign and attest and publish to deptrack
+	if err == nil && (digest != "" || sbom != nil) {
+		post := 0
+		if sbom != nil && dtAddress != "" && dtProjectUUID != "" && dtApiKey != nil {
+			doPublishToDeptrack = true
+			post++
+		}
+		if digest != "" && registryUsername != "" && registryPassword != nil {
+			doSign = true
+			post++
+			if sbom != nil {
+				doAttest = true
+				post++
+			}
+		}
+
+		var dtErr error
+		var signErr error
+		var attErr error
+		wg.Add(post)
+		if doPublishToDeptrack {
+			_, dtErr = func() (string, error) {
+				defer wg.Done()
+				return m.PublishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
+			}()
+		}
+		if doSign {
+			_, signErr = func() (string, error) {
+				defer wg.Done()
+				return m.Sign(ctx, registryUsername, registryPassword, digest)
+			}()
+		}
+		if doAttest {
+			_, attErr = func() (string, error) {
+				defer wg.Done()
+				return m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
+			}()
+		}
+		// This Blocks the execution until its counter become 0
+		wg.Wait()
+
+		if dtErr != nil || signErr != nil || attErr != nil {
+			err = fmt.Errorf("one or more errors occurred: dtErr=%w, signErr=%w, attErr=%w", dtErr, signErr, attErr)
+		}
+	}
+
+	sbomName := ""
+	if sbom != nil {
+		sbomName, err = sbom.Name(ctx)
+	}
+
+	errorString := ""
+	if err != nil {
+		errorString = err.Error()
+	}
+
+	result_container := dag.Container().WithWorkdir("/tmp/out")
+
+	if doLint {
+		result_container = result_container.WithFile(fmt.Sprintf("/tmp/out/lint/%s", lintOutputName), lintOutput)
+	}
+    if doSast {
+        result_container = result_container.WithFile(fmt.Sprintf("/tmp/out/scan/%s", securityScanName), securityScan)
+    }
+    if doTest {
+        result_container = result_container.WithDirectory("/tmp/out/unit-tests/", testReports)
+    }
+    if doIntTest {
+        result_container = result_container.WithDirectory("/tmp/out/integration-tests/", integrationTestReports)
+    }
+    if sbom != nil {
+        result_container = result_container.WithFile(fmt.Sprintf("/tmp/out/sbom/%s", sbomName), sbom)
+    }
+
+	return result_container.
+		WithFile(fmt.Sprintf("/tmp/out/vuln/%s", vulnerabilityScanName), vulnerabilityScan).
+		WithNewFile("/tmp/out/status.txt", errorString).
+		Directory("."), err
+}
+
 // Executes all the steps and returns a directory with the results
-func (m *PitcFlow) Run(
+func (m *PitcFlow) Full(
 	ctx context.Context,
 	// source directory
 	dir *dagger.Directory,
@@ -178,6 +408,10 @@ func (m *PitcFlow) Run(
 	testContainer *dagger.Container,
 	// test report folder name e.g. "/mnt/test/reports"
 	testReportDir string,
+	// integration test container
+	integrationTestContainer *dagger.Container,
+	// integration test report folder name e.g. "/mnt/int-test/reports"
+	integrationTestReportDir string,
 	// registry username for publishing the container image
 	registryUsername string,
 	// registry password for publishing the container image
@@ -190,109 +424,37 @@ func (m *PitcFlow) Run(
 	dtProjectUUID string,
 	// deptrack API key
 	dtApiKey *dagger.Secret,
-	// ignore linter failures
-	// +optional
-	// +default=false
-	pass bool,
 ) (*dagger.Directory, error) {
-	var wg sync.WaitGroup
-	wg.Add(5)
+	return m.Flex(
+		ctx,
+		dir,
+		lintContainer,
+		lintReport,
+		sastContainer,
+		sastReport,
+		testContainer,
+		testReportDir,
+		integrationTestContainer,
+		integrationTestReportDir,
+		registryUsername,
+		registryPassword,
+		registryAddress,
+		dtAddress,
+		dtProjectUUID,
+		dtApiKey,
+	)
+}
 
-	var lintOutput = func() *dagger.File {
-		defer wg.Done()
-		return m.Lint(lintContainer, lintReport)
-	}()
+func shouldRunStep(container *dagger.Container, report string) bool {
+	return container != nil && report != ""
+}
 
-	var securityScan = func() *dagger.File {
-		defer wg.Done()
-		return m.Sast(sastContainer, sastReport)
-	}()
-
-	var vulnerabilityScan = func() *dagger.File {
-		defer wg.Done()
-		return m.Vulnscan(m.SbomBuild(ctx, dir))
-	}()
-
-	var image = func() *dagger.Container {
-		defer wg.Done()
-		return m.Build(ctx, dir)
-	}()
-
-	var testReports = func() *dagger.Directory {
-		defer wg.Done()
-		return m.Test(testContainer, testReportDir)
-	}()
-
-	// This Blocks the execution until its counter become 0
-	wg.Wait()
-
-	// Get the names of the files to fail on errors of the functions
-	lintOutputName, err := lintOutput.Name(ctx)
-	if err != nil {
-		return nil, err
+func countTrue(bools ...bool) int {
+	count := 0
+	for _, b := range bools {
+		if b {
+			count++
+		}
 	}
-	securityScanName, err := securityScan.Name(ctx)
-	if err != nil {
-		return nil, err
-	}
-	vulnerabilityScanName, err := vulnerabilityScan.Name(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// After linting, scanning and testing is done, we can create the sbom and publish the image
-	wg.Add(2)
-
-	var sbom = func() *dagger.File {
-		defer wg.Done()
-		return m.Sbom(image)
-	}()
-
-	digest, err := func() (string, error) {
-		defer wg.Done()
-		return m.Publish(ctx, image, registryAddress, registryUsername, registryPassword)
-	}()
-
-	// This Blocks the execution until its counter become 0
-	wg.Wait()
-
-	if err != nil {
-		return nil, err
-    } else {
-        // After publishing the image, we can sign and attest
-        wg.Add(3)
-
-    	_, dtErr := func() (string, error) {
-    		defer wg.Done()
-    		return m.PublishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
-    	}()
-
-    	_, signErr := func() (string, error) {
-    		defer wg.Done()
-    		return m.Sign(ctx, registryUsername, registryPassword, digest)
-    	}()
-
-    	_, attErr := func() (string, error) {
-    		defer wg.Done()
-    		return m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
-    	}()
-
-        // This Blocks the execution until its counter become 0
-        wg.Wait()
-
-        if dtErr != nil || signErr != nil || attErr != nil {
-            return nil, fmt.Errorf("one or more errors occurred: dtErr=%w, signErr=%w, attErr=%w", dtErr, signErr, attErr)
-        }
-    }
-
-	sbomName, _ := sbom.Name(ctx)
-	result_container := dag.Container().
-		WithWorkdir("/tmp/out").
-		WithFile(fmt.Sprintf("/tmp/out/lint/%s", lintOutputName), lintOutput).
-		WithFile(fmt.Sprintf("/tmp/out/scan/%s", securityScanName), securityScan).
-		WithDirectory("/tmp/out/unit-tests/", testReports).
-		WithFile(fmt.Sprintf("/tmp/out/vuln/%s", vulnerabilityScanName), vulnerabilityScan).
-		WithFile(fmt.Sprintf("/tmp/out/sbom/%s", sbomName), sbom)
-	return result_container.
-		Directory("."), err
+	return count
 }
