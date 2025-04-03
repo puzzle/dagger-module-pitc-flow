@@ -128,11 +128,11 @@ func (m *PitcFlow) Publish(
 	// Registry address to publish to - formatted as [host]/[user]/[repo]:[tag]
 	registryAddress string,
 	// Username of the registry's account
-	// +optional
-	// +default=""
+	//+optional
+	//+default=""
 	registryUsername string,
 	// API key, password or token to authenticate to the registry
-	// +optional
+	//+optional
 	registryPassword *dagger.Secret,
 ) (string, error) {
 	if registryUsername != "" && registryPassword != nil {
@@ -177,82 +177,83 @@ func (m *PitcFlow) Flex(
 	// source directory
 	dir *dagger.Directory,
 	// lint container
-	// +optional
+	//+optional
 	lintContainer *dagger.Container,
 	// lint report file name e.g. "lint.json"
-	// +optional
+	//+optional
 	lintReport string,
 	// sast container
-	// +optional
+	//+optional
 	sastContainer *dagger.Container,
 	// security scan report file name e.g. "/app/brakeman-output.tabs"
-	// +optional
+	//+optional
 	sastReport string,
 	// test container
-	// +optional
+	//+optional
 	testContainer *dagger.Container,
 	// test report folder name e.g. "/mnt/test/reports"
-	// +optional
+	//+optional
 	testReportDir string,
 	// integration test container
-	// +optional
+	//+optional
 	integrationTestContainer *dagger.Container,
 	// integration test report folder name e.g. "/mnt/int-test/reports"
-	// +optional
+	//+optional
 	integrationTestReportDir string,
 	// registry username for publishing the container image
-	// +optional
+	//+optional
 	registryUsername string,
 	// registry password for publishing the container image
-	// +optional
+	//+optional
 	registryPassword *dagger.Secret,
 	// registry address registry/repository/image:tag
-	// +optional
+	//+optional
 	registryAddress string,
 	// deptrack address for publishing the SBOM https://deptrack.example.com/api/v1/bom
-	// +optional
+	//+optional
 	dtAddress string,
 	// deptrack project UUID
-	// +optional
+	//+optional
 	dtProjectUUID string,
 	// deptrack API key
-	// +optional
+	//+optional
 	dtApiKey *dagger.Secret,
 ) (*dagger.Directory, error) {
 
-	prep := 2
 	doLint := shouldRunStep(lintContainer, lintReport)
 	doSast := shouldRunStep(sastContainer, sastReport)
 	doTest := shouldRunStep(testContainer, testReportDir)
 	doIntTest := shouldRunStep(integrationTestContainer, integrationTestReportDir)
-	prep += countTrue(doLint, doSast, doTest, doIntTest)
 
 	var wg sync.WaitGroup
-	wg.Add(prep)
-
+	wg.Add(2)
 	var lintOutput *dagger.File
 	var securityScan *dagger.File
 	var testReports *dagger.Directory
 	var integrationTestReports *dagger.Directory
 	if doLint {
+        wg.Add(1)
 		lintOutput = func() *dagger.File {
 			defer wg.Done()
 			return m.Lint(lintContainer, lintReport)
 		}()
 	}
 	if doSast {
+        wg.Add(1)
 		securityScan = func() *dagger.File {
 			defer wg.Done()
 			return m.Sast(sastContainer, sastReport)
 		}()
 	}
 	if doTest {
+        wg.Add(1)
 		testReports = func() *dagger.Directory {
 			defer wg.Done()
 			return m.Test(testContainer, testReportDir)
 		}()
 	}
     if doIntTest {
+        wg.Add(1)
         integrationTestReports = func() *dagger.Directory {
             defer wg.Done()
             return m.IntTest(integrationTestContainer, integrationTestReportDir)
@@ -308,46 +309,31 @@ func (m *PitcFlow) Flex(
 		wg.Wait()
 	}
 
-	var doPublishToDeptrack bool
-	var doSign bool
-	var doAttest bool
 	// After publishing the image, we are ready to sign and attest and publish to deptrack
 	if err == nil && (digest != "" || sbom != nil) {
-		post := 0
-		if sbom != nil && dtAddress != "" && dtProjectUUID != "" && dtApiKey != nil {
-			doPublishToDeptrack = true
-			post++
-		}
-		if digest != "" && registryUsername != "" && registryPassword != nil {
-			doSign = true
-			post++
-			if sbom != nil {
-				doAttest = true
-				post++
-			}
-		}
-
 		var dtErr error
 		var signErr error
 		var attErr error
-		wg.Add(post)
-		if doPublishToDeptrack {
+		if sbom != nil && dtAddress != "" && dtProjectUUID != "" && dtApiKey != nil {
+            wg.Add(1)
 			_, dtErr = func() (string, error) {
 				defer wg.Done()
 				return m.PublishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
 			}()
 		}
-		if doSign {
+		if digest != "" && registryUsername != "" && registryPassword != nil {
+            wg.Add(1)
 			_, signErr = func() (string, error) {
 				defer wg.Done()
 				return m.Sign(ctx, registryUsername, registryPassword, digest)
 			}()
-		}
-		if doAttest {
-			_, attErr = func() (string, error) {
-				defer wg.Done()
-				return m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
-			}()
+			if sbom != nil {
+                wg.Add(1)
+                _, attErr = func() (string, error) {
+                    defer wg.Done()
+                    return m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
+                }()
+			}
 		}
 		// This Blocks the execution until its counter become 0
 		wg.Wait()
@@ -445,16 +431,48 @@ func (m *PitcFlow) Full(
 	)
 }
 
-func shouldRunStep(container *dagger.Container, report string) bool {
-	return container != nil && report != ""
+// Executes all the CI steps (no publishing) and returns a directory with the results
+func (m *PitcFlow) Ci(
+	ctx context.Context,
+	// source directory
+	dir *dagger.Directory,
+	// lint container
+	lintContainer *dagger.Container,
+	// lint report file name e.g. "lint.json"
+	lintReport string,
+	// sast container
+	sastContainer *dagger.Container,
+	// security scan report file name e.g. "/app/brakeman-output.tabs"
+	sastReport string,
+	// test container
+	testContainer *dagger.Container,
+	// test report folder name e.g. "/mnt/test/reports"
+	testReportDir string,
+	// integration test container
+	integrationTestContainer *dagger.Container,
+	// integration test report folder name e.g. "/mnt/int-test/reports"
+	integrationTestReportDir string,
+) (*dagger.Directory, error) {
+	return m.Flex(
+		ctx,
+		dir,
+		lintContainer,
+		lintReport,
+		sastContainer,
+		sastReport,
+		testContainer,
+		testReportDir,
+		integrationTestContainer,
+		integrationTestReportDir,
+        "",
+        nil,
+        "",
+        "",
+        "",
+        nil,
+	)
 }
 
-func countTrue(bools ...bool) int {
-	count := 0
-	for _, b := range bools {
-		if b {
-			count++
-		}
-	}
-	return count
+func shouldRunStep(container *dagger.Container, report string) bool {
+	return container != nil && report != ""
 }

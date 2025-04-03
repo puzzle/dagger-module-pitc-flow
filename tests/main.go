@@ -22,6 +22,7 @@ func (m *Tests) All(ctx context.Context) error {
 	p.Go(m.Publish)
 	p.Go(m.PublishWithCredentials)
 	p.Go(m.Full)
+    p.Go(m.Ci)
 	p.Go(m.Flex)
 
 	return p.Wait()
@@ -119,6 +120,53 @@ func (m *Tests) Full(_ context.Context) error {
 		dtAddress,
 		dtProjectUUID,
 		secret,
+	)
+
+	if directory == nil {
+		return fmt.Errorf("should run the pipeline and return a directory")
+	}
+
+	files, err := directory.Entries(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to list files in directory: %w", err)
+	}
+
+	for _, file := range files {
+		if strings.Contains(file, "status.txt") {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("status.txt was missing from all files: %v", files)
+}
+
+// Ci test.
+func (m *Tests) Ci(_ context.Context) error {
+	lintContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint.txt"})
+	sastContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+		WithExec([]string{"sh", "-c", "echo 'sast' > /tmp/sast.txt"})
+	testContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+		WithExec([]string{"sh", "-c", "mkdir -p /tmp/uTests"})
+	integrationTestContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+		WithExec([]string{"sh", "-c", "mkdir -p /tmp/iTests"})
+
+	dir := dag.CurrentModule().Source().Directory("./testdata")
+	lintReport := "/tmp/lint.txt"
+	sastReport := "/tmp/sast.txt"
+	testReportDir := "/tmp/uTests"
+	integrationTestReportDir := "/tmp/iTests"
+
+	directory := dag.PitcFlow().Ci(
+		dir,
+		lintContainer,
+		lintReport,
+		sastContainer,
+		sastReport,
+		testContainer,
+		testReportDir,
+		integrationTestContainer,
+		integrationTestReportDir,
 	)
 
 	if directory == nil {
