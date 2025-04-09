@@ -16,11 +16,6 @@ type Tests struct{}
 func (m *Tests) All(ctx context.Context) error {
 	p := pool.New().WithErrors().WithContext(ctx)
 
-	p.Go(m.Sbom)
-	p.Go(m.SbomBuild)
-	p.Go(m.Vulnscan)
-	p.Go(m.Publish)
-	p.Go(m.PublishWithCredentials)
 	p.Go(m.Full)
     p.Go(m.Ci)
 	p.Go(m.Flex)
@@ -28,74 +23,23 @@ func (m *Tests) All(ctx context.Context) error {
 	return p.Wait()
 }
 
-// Sbom test.
-func (m *Tests) Sbom(_ context.Context) error {
-	container := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
-	if nil == dag.PitcFlow().Sbom(container) {
-		return fmt.Errorf("should return sbom")
-	}
-	return nil
-}
-
-// SbomBuild test.
-func (m *Tests) SbomBuild(_ context.Context) error {
-	directory := dag.CurrentModule().Source().Directory("./testdata")
-	if nil == dag.PitcFlow().SbomBuild(directory) {
-		return fmt.Errorf("should build from dockerfile and return sbom")
-	}
-	return nil
-}
-
-// Vulnscan test.
-func (m *Tests) Vulnscan(_ context.Context) error {
-	container := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
-	sbom := dag.PitcFlow().Sbom(container)
-	if nil == dag.PitcFlow().Vulnscan(sbom) {
-		return fmt.Errorf("should return vulnerabilty scan report")
-	}
-	return nil
-}
-
-// Publish test.
-func (m *Tests) Publish(ctx context.Context) error {
-	container := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
-	_, err := dag.PitcFlow().Publish(ctx, container, "ttl.sh/test/alpine:latest")
-	if err != nil {
-		return fmt.Errorf("should publish container to registry")
-	}
-	return nil
-}
-
-// PublishWithCredentials test.
-func (m *Tests) PublishWithCredentials(ctx context.Context) error {
-	container := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
-	secret := dag.SetSecret("password", "verySecret")
-	_, err := dag.PitcFlow().Publish(
-		ctx,
-		container,
-		"ttl.sh/test/alpine:latest",
-		dagger.PitcFlowPublishOpts{RegistryUsername: "joe", RegistryPassword: secret},
-	)
-	if err != nil {
-		return fmt.Errorf("should publish container to registry")
-	}
-	return nil
-}
 
 // Full test.
 func (m *Tests) Full(_ context.Context) error {
 	lintContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
-		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint.txt"})
+        WithExec([]string{"sh", "-c", "mkdir -p /tmp/lint"}).
+		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint/lint.txt"})
 	sastContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
-		WithExec([]string{"sh", "-c", "echo 'sast' > /tmp/sast.txt"})
+        WithExec([]string{"sh", "-c", "mkdir -p /tmp/sast"}).
+		WithExec([]string{"sh", "-c", "echo 'sast' > /tmp/sast/sast.txt"})
 	testContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/uTests"})
 	integrationTestContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/iTests"})
 
 	dir := dag.CurrentModule().Source().Directory("./testdata")
-	lintReport := "/tmp/lint.txt"
-	sastReport := "/tmp/sast.txt"
+	lintReportDir := "/tmp/lint"
+	sastReportDir := "/tmp/sast"
 	testReportDir := "/tmp/uTests"
 	integrationTestReportDir := "/tmp/iTests"
 	registryUsername := "joe"
@@ -107,9 +51,9 @@ func (m *Tests) Full(_ context.Context) error {
 	directory := dag.PitcFlow().Full(
 		dir,
 		lintContainer,
-		lintReport,
+		lintReportDir,
 		sastContainer,
-		sastReport,
+		sastReportDir,
 		testContainer,
 		testReportDir,
 		integrationTestContainer,
@@ -143,26 +87,28 @@ func (m *Tests) Full(_ context.Context) error {
 // Ci test.
 func (m *Tests) Ci(_ context.Context) error {
 	lintContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
-		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint.txt"})
+        WithExec([]string{"sh", "-c", "mkdir -p /tmp/lint"}).
+		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint/lint.txt"})
 	sastContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
-		WithExec([]string{"sh", "-c", "echo 'sast' > /tmp/sast.txt"})
+        WithExec([]string{"sh", "-c", "mkdir -p /tmp/sast"}).
+		WithExec([]string{"sh", "-c", "echo 'sast' > /tmp/sast/sast.txt"})
 	testContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/uTests"})
 	integrationTestContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/iTests"})
 
 	dir := dag.CurrentModule().Source().Directory("./testdata")
-	lintReport := "/tmp/lint.txt"
-	sastReport := "/tmp/sast.txt"
+	lintReportDir := "/tmp/lint"
+	sastReportDir := "/tmp/sast"
 	testReportDir := "/tmp/uTests"
 	integrationTestReportDir := "/tmp/iTests"
 
 	directory := dag.PitcFlow().Ci(
 		dir,
 		lintContainer,
-		lintReport,
+		lintReportDir,
 		sastContainer,
-		sastReport,
+		sastReportDir,
 		testContainer,
 		testReportDir,
 		integrationTestContainer,
@@ -190,10 +136,11 @@ func (m *Tests) Ci(_ context.Context) error {
 // Flex test.
 func (m *Tests) Flex(_ context.Context) error {
 	lintContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
-		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint.txt"})
+        WithExec([]string{"sh", "-c", "mkdir -p /tmp/lint"}).
+		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint/lint.txt"})
 
 	dir := dag.CurrentModule().Source().Directory("./testdata")
-	lintReport := "/tmp/lint.txt"
+	lintReportDir := "/tmp/lint/lint.txt"
 	registryUsername := "joe"
 	secret := dag.SetSecret("password", "verySecret")
 	registryAddress := "ttl.sh/test/alpine:latest"
@@ -202,7 +149,7 @@ func (m *Tests) Flex(_ context.Context) error {
 
 	directory := dag.PitcFlow().Flex(
 		dir,
-        dagger.PitcFlowFlexOpts{LintContainer: lintContainer, LintReport: lintReport, RegistryUsername: registryUsername, RegistryPassword: secret, RegistryAddress: registryAddress, DtAddress: dtAddress, DtProjectUUID: dtProjectUUID, DtAPIKey: secret},
+        dagger.PitcFlowFlexOpts{LintContainer: lintContainer, LintReportDir: lintReportDir, RegistryUsername: registryUsername, RegistryPassword: secret, RegistryAddress: registryAddress, DtAddress: dtAddress, DtProjectUUID: dtProjectUUID, DtAPIKey: secret},
 	)
 
 	if directory == nil {

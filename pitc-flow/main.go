@@ -17,17 +17,17 @@ import (
 type PitcFlow struct{}
 
 // Returns a file containing the results of the lint command
-func (m *PitcFlow) Lint(
+func (m *PitcFlow) lint(
 	// Container to run the lint command
 	container *dagger.Container,
-	// Path to file containing lint results
+	// Path to directory containing lint results
 	results string,
-) *dagger.File {
-	return container.File(results)
+) *dagger.Directory {
+	return container.Directory(results)
 }
 
 // Returns a directory containing the results of the test command
-func (m *PitcFlow) Test(
+func (m *PitcFlow) test(
 	// Container to run the test command
 	container *dagger.Container,
 	// Path to directory containing test results
@@ -37,7 +37,7 @@ func (m *PitcFlow) Test(
 }
 
 // Returns a directory containing the results of the integration test command
-func (m *PitcFlow) IntTest(
+func (m *PitcFlow) intTest(
 	// Container to run the integration test command
 	container *dagger.Container,
 	// Path to directory containing integration test results
@@ -47,17 +47,17 @@ func (m *PitcFlow) IntTest(
 }
 
 // Returns a file containing the results of the security scan
-func (m *PitcFlow) Sast(
+func (m *PitcFlow) sast(
 	// Container to run the security scan
 	container *dagger.Container,
-	// Path to file containing the results of the security scan
+	// Path to directory containing the results of the security scan
 	results string,
-) *dagger.File {
-	return container.File(results)
+) *dagger.Directory {
+	return container.Directory(results)
 }
 
 // Returns a Container built from the Dockerfile in the provided Directory
-func (m *PitcFlow) Build(_ context.Context, dir *dagger.Directory) *dagger.Container {
+func (m *PitcFlow) build(_ context.Context, dir *dagger.Directory) *dagger.Container {
 	return dag.Container().
 		WithDirectory("/src", dir).
 		WithWorkdir("/src").
@@ -66,13 +66,13 @@ func (m *PitcFlow) Build(_ context.Context, dir *dagger.Directory) *dagger.Conta
 }
 
 // Builds the container and creates a SBOM for it
-func (m *PitcFlow) SbomBuild(ctx context.Context, dir *dagger.Directory) *dagger.File {
-	container := m.Build(ctx, dir)
-	return m.Sbom(container)
+func (m *PitcFlow) sbomBuild(ctx context.Context, dir *dagger.Directory) *dagger.File {
+	container := m.build(ctx, dir)
+	return m.sbom(container)
 }
 
 // Creates a SBOM for the container
-func (m *PitcFlow) Sbom(container *dagger.Container) *dagger.File {
+func (m *PitcFlow) sbom(container *dagger.Container) *dagger.File {
 	trivy_container := dag.Container().
 		From("aquasec/trivy").
 		WithEnvVariable("TRIVY_JAVA_DB_REPOSITORY", "public.ecr.aws/aquasecurity/trivy-java-db")
@@ -88,7 +88,7 @@ func (m *PitcFlow) Sbom(container *dagger.Container) *dagger.File {
 }
 
 // Scans the SBOM for vulnerabilities
-func (m *PitcFlow) Vulnscan(sbom *dagger.File) *dagger.File {
+func (m *PitcFlow) vulnscan(sbom *dagger.File) *dagger.File {
 	trivy_container := dag.Container().
 		From("aquasec/trivy").
 		WithEnvVariable("TRIVY_JAVA_DB_REPOSITORY", "public.ecr.aws/aquasecurity/trivy-java-db")
@@ -102,7 +102,7 @@ func (m *PitcFlow) Vulnscan(sbom *dagger.File) *dagger.File {
 }
 
 // Publish cyclonedx SBOM to Deptrack
-func (m *PitcFlow) PublishToDeptrack(
+func (m *PitcFlow) publishToDeptrack(
 	ctx context.Context,
 	// SBOM file
 	sbom *dagger.File,
@@ -121,7 +121,7 @@ func (m *PitcFlow) PublishToDeptrack(
 }
 
 // Publish the provided Container to the provided registry
-func (m *PitcFlow) Publish(
+func (m *PitcFlow) publish(
 	ctx context.Context,
 	// Container to publish
 	container *dagger.Container,
@@ -142,7 +142,7 @@ func (m *PitcFlow) Publish(
 }
 
 // Sign the published image using cosign (keyless)
-func (m *PitcFlow) Sign(
+func (m *PitcFlow) sign(
 	ctx context.Context,
 	// Username of the registry's account
 	registryUsername string,
@@ -155,7 +155,7 @@ func (m *PitcFlow) Sign(
 }
 
 // Attests the SBOM using cosign (keyless)
-func (m *PitcFlow) Attest(
+func (m *PitcFlow) attest(
 	ctx context.Context,
 	// Username of the registry's account
 	registryUsername string,
@@ -179,15 +179,15 @@ func (m *PitcFlow) Flex(
 	// lint container
 	//+optional
 	lintContainer *dagger.Container,
-	// lint report file name e.g. "lint.json"
+	// lint report folder name e.g. "lint.json"
 	//+optional
-	lintReport string,
+	lintReportDir string,
 	// sast container
 	//+optional
 	sastContainer *dagger.Container,
-	// security scan report file name e.g. "/app/brakeman-output.tabs"
+	// security scan report folder name e.g. "/app/brakeman-output.tabs"
 	//+optional
-	sastReport string,
+	sastReportDir string,
 	// test container
 	//+optional
 	testContainer *dagger.Container,
@@ -220,69 +220,67 @@ func (m *PitcFlow) Flex(
 	dtApiKey *dagger.Secret,
 ) (*dagger.Directory, error) {
 
-	doLint := shouldRunStep(lintContainer, lintReport)
-	doSast := shouldRunStep(sastContainer, sastReport)
+	doLint := shouldRunStep(lintContainer, lintReportDir)
+	doSast := shouldRunStep(sastContainer, sastReportDir)
 	doTest := shouldRunStep(testContainer, testReportDir)
 	doIntTest := shouldRunStep(integrationTestContainer, integrationTestReportDir)
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	var lintOutput *dagger.File
-	var securityScan *dagger.File
+	var lintReports *dagger.Directory
+	var securityReports *dagger.Directory
 	var testReports *dagger.Directory
 	var integrationTestReports *dagger.Directory
 	if doLint {
         wg.Add(1)
-		lintOutput = func() *dagger.File {
+		lintReports = func() *dagger.Directory {
 			defer wg.Done()
-			return m.Lint(lintContainer, lintReport)
+			return m.lint(lintContainer, lintReportDir)
 		}()
 	}
 	if doSast {
         wg.Add(1)
-		securityScan = func() *dagger.File {
+		securityReports = func() *dagger.Directory {
 			defer wg.Done()
-			return m.Sast(sastContainer, sastReport)
+			return m.sast(sastContainer, sastReportDir)
 		}()
 	}
 	if doTest {
         wg.Add(1)
 		testReports = func() *dagger.Directory {
 			defer wg.Done()
-			return m.Test(testContainer, testReportDir)
+			return m.test(testContainer, testReportDir)
 		}()
 	}
     if doIntTest {
         wg.Add(1)
         integrationTestReports = func() *dagger.Directory {
             defer wg.Done()
-            return m.IntTest(integrationTestContainer, integrationTestReportDir)
+            return m.intTest(integrationTestContainer, integrationTestReportDir)
         }()
     }
 
 	var vulnerabilityScan = func() *dagger.File {
 		defer wg.Done()
-		return m.Vulnscan(m.SbomBuild(ctx, dir))
+		return m.vulnscan(m.sbomBuild(ctx, dir))
 	}()
 	var image = func() *dagger.Container {
 		defer wg.Done()
-		return m.Build(ctx, dir)
+		return m.build(ctx, dir)
 	}()
 	// This Blocks the execution until its counter become 0
 	wg.Wait()
 
 	var err error
-	lintOutputName := ""
-	securityScanName := ""
 	// Get the names of the files to fail on errors of the functions
 	if doLint {
-		lintOutputName, err = lintOutput.Name(ctx)
+		_, err = lintReports.Name(ctx)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if doSast {
-		securityScanName, err = securityScan.Name(ctx)
+		_, err = securityReports.Name(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -299,11 +297,11 @@ func (m *PitcFlow) Flex(
 		wg.Add(2)
 		sbom = func() *dagger.File {
 			defer wg.Done()
-			return m.Sbom(image)
+			return m.sbom(image)
 		}()
 		digest, err = func() (string, error) {
 			defer wg.Done()
-			return m.Publish(ctx, image, registryAddress, registryUsername, registryPassword)
+			return m.publish(ctx, image, registryAddress, registryUsername, registryPassword)
 		}()
 		// This Blocks the execution until its counter become 0
 		wg.Wait()
@@ -318,20 +316,20 @@ func (m *PitcFlow) Flex(
             wg.Add(1)
 			_, dtErr = func() (string, error) {
 				defer wg.Done()
-				return m.PublishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
+				return m.publishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
 			}()
 		}
 		if digest != "" && registryUsername != "" && registryPassword != nil {
             wg.Add(1)
 			_, signErr = func() (string, error) {
 				defer wg.Done()
-				return m.Sign(ctx, registryUsername, registryPassword, digest)
+				return m.sign(ctx, registryUsername, registryPassword, digest)
 			}()
 			if sbom != nil {
                 wg.Add(1)
                 _, attErr = func() (string, error) {
                     defer wg.Done()
-                    return m.Attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
+                    return m.attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
                 }()
 			}
 		}
@@ -356,10 +354,10 @@ func (m *PitcFlow) Flex(
 	result_container := dag.Container().WithWorkdir("/tmp/out")
 
 	if doLint {
-		result_container = result_container.WithFile(fmt.Sprintf("/tmp/out/lint/%s", lintOutputName), lintOutput)
+		result_container = result_container.WithDirectory("/tmp/out/lint/", lintReports)
 	}
     if doSast {
-        result_container = result_container.WithFile(fmt.Sprintf("/tmp/out/scan/%s", securityScanName), securityScan)
+        result_container = result_container.WithDirectory("/tmp/out/scan/", securityReports)
     }
     if doTest {
         result_container = result_container.WithDirectory("/tmp/out/unit-tests/", testReports)
@@ -384,12 +382,12 @@ func (m *PitcFlow) Full(
 	dir *dagger.Directory,
 	// lint container
 	lintContainer *dagger.Container,
-	// lint report file name e.g. "lint.json"
-	lintReport string,
+	// lint report folder name e.g. "lint.json"
+	lintReportDir string,
 	// sast container
 	sastContainer *dagger.Container,
-	// security scan report file name e.g. "/app/brakeman-output.tabs"
-	sastReport string,
+	// security scan report folder name e.g. "/app/brakeman-output.tabs"
+	sastReportDir string,
 	// test container
 	testContainer *dagger.Container,
 	// test report folder name e.g. "/mnt/test/reports"
@@ -415,9 +413,9 @@ func (m *PitcFlow) Full(
 		ctx,
 		dir,
 		lintContainer,
-		lintReport,
+		lintReportDir,
 		sastContainer,
-		sastReport,
+		sastReportDir,
 		testContainer,
 		testReportDir,
 		integrationTestContainer,
@@ -438,12 +436,12 @@ func (m *PitcFlow) Ci(
 	dir *dagger.Directory,
 	// lint container
 	lintContainer *dagger.Container,
-	// lint report file name e.g. "lint.json"
-	lintReport string,
+	// lint report folder name e.g. "lint.json"
+	lintReportDir string,
 	// sast container
 	sastContainer *dagger.Container,
-	// security scan report file name e.g. "/app/brakeman-output.tabs"
-	sastReport string,
+	// security scan report folder name e.g. "/app/brakeman-output.tabs"
+	sastReportDir string,
 	// test container
 	testContainer *dagger.Container,
 	// test report folder name e.g. "/mnt/test/reports"
@@ -457,9 +455,9 @@ func (m *PitcFlow) Ci(
 		ctx,
 		dir,
 		lintContainer,
-		lintReport,
+		lintReportDir,
 		sastContainer,
-		sastReport,
+		sastReportDir,
 		testContainer,
 		testReportDir,
 		integrationTestContainer,
