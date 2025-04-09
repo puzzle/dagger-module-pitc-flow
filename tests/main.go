@@ -140,7 +140,7 @@ func (m *Tests) Flex(_ context.Context) error {
 		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint/lint.txt"})
 
 	dir := dag.CurrentModule().Source().Directory("./testdata")
-	lintReportDir := "/tmp/lint/lint.txt"
+	lintReportDir := "/tmp/lint"
 	registryUsername := "joe"
 	secret := dag.SetSecret("password", "verySecret")
 	registryAddress := "ttl.sh/test/alpine:latest"
