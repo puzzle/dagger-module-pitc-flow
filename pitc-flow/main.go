@@ -77,33 +77,33 @@ func (m *PitcFlow) Flex(
 	var testReports *dagger.Directory
 	var integrationTestReports *dagger.Directory
 	if doLint {
-        wg.Add(1)
+		wg.Add(1)
 		lintReports = func() *dagger.Directory {
 			defer wg.Done()
 			return m.lint(lintContainer, lintReportDir)
 		}()
 	}
 	if doSast {
-        wg.Add(1)
+		wg.Add(1)
 		securityReports = func() *dagger.Directory {
 			defer wg.Done()
 			return m.sast(sastContainer, sastReportDir)
 		}()
 	}
 	if doTest {
-        wg.Add(1)
+		wg.Add(1)
 		testReports = func() *dagger.Directory {
 			defer wg.Done()
 			return m.test(testContainer, testReportDir)
 		}()
 	}
-    if doIntTest {
-        wg.Add(1)
-        integrationTestReports = func() *dagger.Directory {
-            defer wg.Done()
-            return m.intTest(integrationTestContainer, integrationTestReportDir)
-        }()
-    }
+	if doIntTest {
+		wg.Add(1)
+		integrationTestReports = func() *dagger.Directory {
+			defer wg.Done()
+			return m.intTest(integrationTestContainer, integrationTestReportDir)
+		}()
+	}
 
 	var vulnerabilityScan = func() *dagger.File {
 		defer wg.Done()
@@ -158,24 +158,24 @@ func (m *PitcFlow) Flex(
 		var signErr error
 		var attErr error
 		if sbom != nil && dtAddress != "" && dtProjectUUID != "" && dtApiKey != nil {
-            wg.Add(1)
+			wg.Add(1)
 			_, dtErr = func() (string, error) {
 				defer wg.Done()
 				return m.publishToDeptrack(ctx, sbom, dtAddress, dtApiKey, dtProjectUUID)
 			}()
 		}
 		if digest != "" && registryUsername != "" && registryPassword != nil {
-            wg.Add(1)
+			wg.Add(1)
 			_, signErr = func() (string, error) {
 				defer wg.Done()
 				return m.sign(ctx, registryUsername, registryPassword, digest)
 			}()
 			if sbom != nil {
-                wg.Add(1)
-                _, attErr = func() (string, error) {
-                    defer wg.Done()
-                    return m.attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
-                }()
+				wg.Add(1)
+				_, attErr = func() (string, error) {
+					defer wg.Done()
+					return m.attest(ctx, registryUsername, registryPassword, digest, sbom, "cyclonedx")
+				}()
 			}
 		}
 		// This Blocks the execution until its counter become 0
@@ -201,18 +201,18 @@ func (m *PitcFlow) Flex(
 	if doLint {
 		result_container = result_container.WithDirectory("/tmp/out/lint/", lintReports)
 	}
-    if doSast {
-        result_container = result_container.WithDirectory("/tmp/out/scan/", securityReports)
-    }
-    if doTest {
-        result_container = result_container.WithDirectory("/tmp/out/unit-tests/", testReports)
-    }
-    if doIntTest {
-        result_container = result_container.WithDirectory("/tmp/out/integration-tests/", integrationTestReports)
-    }
-    if sbom != nil {
-        result_container = result_container.WithFile(fmt.Sprintf("/tmp/out/sbom/%s", sbomName), sbom)
-    }
+	if doSast {
+		result_container = result_container.WithDirectory("/tmp/out/scan/", securityReports)
+	}
+	if doTest {
+		result_container = result_container.WithDirectory("/tmp/out/unit-tests/", testReports)
+	}
+	if doIntTest {
+		result_container = result_container.WithDirectory("/tmp/out/integration-tests/", integrationTestReports)
+	}
+	if sbom != nil {
+		result_container = result_container.WithFile(fmt.Sprintf("/tmp/out/sbom/%s", sbomName), sbom)
+	}
 
 	return result_container.
 		WithFile(fmt.Sprintf("/tmp/out/vuln/%s", vulnerabilityScanName), vulnerabilityScan).
@@ -307,12 +307,12 @@ func (m *PitcFlow) Ci(
 		testReportDir,
 		integrationTestContainer,
 		integrationTestReportDir,
-        "",
-        nil,
-        "",
-        "",
-        "",
-        nil,
+		"",
+		nil,
+		"",
+		"",
+		"",
+		nil,
 	)
 }
 
