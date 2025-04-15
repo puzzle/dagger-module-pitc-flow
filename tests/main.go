@@ -26,15 +26,16 @@ func (m *Tests) All(ctx context.Context) error {
 
 // Full test.
 func (m *Tests) Full(_ context.Context) error {
-	lintContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+	uniqBaseContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
+	lintContainer := uniqBaseContainer.
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/lint"}).
 		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint/lint.txt"})
-	sastContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+	sastContainer := uniqBaseContainer.
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/sast"}).
 		WithExec([]string{"sh", "-c", "echo 'sast' > /tmp/sast/sast.txt"})
-	testContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+	testContainer := uniqBaseContainer.
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/uTests"})
-	integrationTestContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+	integrationTestContainer := uniqBaseContainer.
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/iTests"})
 
 	dir := dag.CurrentModule().Source().Directory("./testdata")
@@ -86,15 +87,16 @@ func (m *Tests) Full(_ context.Context) error {
 
 // Ci test.
 func (m *Tests) Ci(_ context.Context) error {
-	lintContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+	uniqBaseContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano()))
+	lintContainer := uniqBaseContainer.
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/lint"}).
 		WithExec([]string{"sh", "-c", "echo 'lint' > /tmp/lint/lint.txt"})
-	sastContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+	sastContainer := uniqBaseContainer.
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/sast"}).
 		WithExec([]string{"sh", "-c", "echo 'sast' > /tmp/sast/sast.txt"})
-	testContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+	testContainer := uniqBaseContainer.
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/uTests"})
-	integrationTestContainer := m.uniqContainer("alpine:latest", fmt.Sprintf("%d", time.Now().UnixNano())).
+	integrationTestContainer := uniqBaseContainer.
 		WithExec([]string{"sh", "-c", "mkdir -p /tmp/iTests"})
 
 	dir := dag.CurrentModule().Source().Directory("./testdata")
