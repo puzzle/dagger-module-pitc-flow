@@ -319,7 +319,7 @@ func (m *PitcFlow) Ci(
 // Verifies if the run was succesful and returns the error messages
 func (m *PitcFlow) Verify(
 	ctx context.Context,
-    // status.txt file to be verified
+	// status.txt file to be verified
 	status *dagger.File,
 ) (string, error) {
     content, err := status.Contents(ctx)
