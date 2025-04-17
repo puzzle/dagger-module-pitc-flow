@@ -19,6 +19,7 @@ func (m *Tests) All(ctx context.Context) error {
 	p.Go(m.Full)
 	p.Go(m.Ci)
 	p.Go(m.Flex)
+	p.Go(m.Verify)
 
 	return p.Wait()
 }
@@ -171,6 +172,23 @@ func (m *Tests) Flex(_ context.Context) error {
 
 	return fmt.Errorf("status.txt was missing from all files: %v", files)
 }
+
+func (m *Tests) Verify(ctx context.Context) error {
+    success := dag.CurrentModule().Source().Directory(".").WithNewFile("status.txt", "").File("status.txt")
+    _, err := dag.PitcFlow().Verify(ctx, success)
+	if err != nil {
+		return fmt.Errorf("failed to verify succesfull run: %w", err)
+	}
+
+    failure := dag.CurrentModule().Source().Directory(".").WithNewFile("status.txt", "fail").File("status.txt")
+    _, err = dag.PitcFlow().Verify(ctx, failure)
+    if err == nil {
+        return fmt.Errorf("failed to verify failed run: %w", err)
+    }
+
+    return nil
+}
+
 
 func (m *Tests) uniqContainer(image string, randomString string) *dagger.Container {
 	return dag.Container().From(image).
