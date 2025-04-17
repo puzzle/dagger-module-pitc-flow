@@ -322,13 +322,14 @@ func (m *PitcFlow) Verify(
     // status.txt file to be verified
 	status *dagger.File,
 ) (string, error) {
-	size, _ := status.Size(ctx)
-	if size > 0 {
-		content, _ := status.Contents(ctx)
-		return content, fmt.Errorf("%w", content)
-	} else {
-		return "", nil
+    content, err := status.Contents(ctx)
+	if err != nil {
+		return "", err
 	}
+	if content != "" {
+		return content, fmt.Errorf("%w", content)
+	}
+	return "", nil
 }
 
 func shouldRunStep(container *dagger.Container, report string) bool {
