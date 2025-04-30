@@ -63,12 +63,16 @@ func (m *PitcFlow) Flex(
 	// deptrack API key
 	//+optional
 	dtApiKey *dagger.Secret,
+	// pre built app container
+	//+optional
+	appContainer *dagger.Container,
 ) (*dagger.Directory, error) {
 
 	doLint := shouldRunStep(lintContainer, lintReportDir)
 	doSast := shouldRunStep(sastContainer, sastReportDir)
 	doTest := shouldRunStep(testContainer, testReportDir)
 	doIntTest := shouldRunStep(integrationTestContainer, integrationTestReportDir)
+	doBuild := appContainer == nil
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -107,11 +111,17 @@ func (m *PitcFlow) Flex(
 
 	var vulnerabilityScan = func() *dagger.File {
 		defer wg.Done()
-		return m.vulnscan(m.sbomBuild(ctx, dir))
+		if doBuild {
+			return m.vulnscan(m.sbomBuild(ctx, dir))
+		}
+        return m.vulnscan(m.sbom(appContainer))
 	}()
 	var image = func() *dagger.Container {
 		defer wg.Done()
-		return m.build(ctx, dir)
+		if doBuild {
+			return m.build(ctx, dir)
+		}
+        return appContainer
 	}()
 	// This Blocks the execution until its counter become 0
 	wg.Wait()
@@ -253,6 +263,9 @@ func (m *PitcFlow) Full(
 	dtProjectUUID string,
 	// deptrack API key
 	dtApiKey *dagger.Secret,
+	// pre built app container
+	//+optional
+	appContainer *dagger.Container,
 ) (*dagger.Directory, error) {
 	return m.Flex(
 		ctx,
@@ -271,6 +284,7 @@ func (m *PitcFlow) Full(
 		dtAddress,
 		dtProjectUUID,
 		dtApiKey,
+		appContainer,
 	)
 }
 
@@ -295,6 +309,9 @@ func (m *PitcFlow) Ci(
 	integrationTestContainer *dagger.Container,
 	// integration test report folder name e.g. "/mnt/int-test/reports"
 	integrationTestReportDir string,
+	// pre built app container
+	//+optional
+	appContainer *dagger.Container,
 ) (*dagger.Directory, error) {
 	return m.Flex(
 		ctx,
@@ -313,6 +330,7 @@ func (m *PitcFlow) Ci(
 		"",
 		"",
 		nil,
+		appContainer,
 	)
 }
 
@@ -322,7 +340,7 @@ func (m *PitcFlow) Verify(
 	// status.txt file to be verified
 	status *dagger.File,
 ) (string, error) {
-    content, err := status.Contents(ctx)
+	content, err := status.Contents(ctx)
 	if err != nil {
 		return "", err
 	}

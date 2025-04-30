@@ -106,7 +106,7 @@ func (m *PitcFlow) publishToDeptrack(
     return dag.Container().
         From("curlimages/curl").
         WithFile("sbom.json", sbom).
-        WithExec([]string{"curl", "-X", "POST", "-H", "'Content-Type: multipart/form-data'", "-H", fmt.Sprintf("'X-API-Key: %s'", apiKey), "-F", fmt.Sprintf("'project=%s'", projectUUID), "-F", "bom=@sbom.json", address}).
+        WithExec([]string{"curl", "-f", "-X", "POST", "-H", "'Content-Type: multipart/form-data'", "-H", fmt.Sprintf("'X-API-Key: %s'", apiKey), "-F", fmt.Sprintf("'project=%s'", projectUUID), "-F", "bom=@sbom.json", address}).
         Stdout(ctx)
 }
 
