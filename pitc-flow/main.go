@@ -114,14 +114,14 @@ func (m *PitcFlow) Flex(
 		if doBuild {
 			return m.vulnscan(m.sbomBuild(ctx, dir))
 		}
-        return m.vulnscan(m.sbom(appContainer))
+		return m.vulnscan(m.sbom(appContainer))
 	}()
 	var image = func() *dagger.Container {
 		defer wg.Done()
 		if doBuild {
 			return m.build(ctx, dir)
 		}
-        return appContainer
+		return appContainer
 	}()
 	// This Blocks the execution until its counter become 0
 	wg.Wait()
