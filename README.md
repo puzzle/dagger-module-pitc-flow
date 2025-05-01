@@ -15,7 +15,7 @@ Basic usage guide.
 
 The [pitc-flow](./pitc-flow/) directory contains a [daggerverse](https://daggerverse.dev/) [Dagger](https://dagger.io/) module.
 
-Check the official Dagger Module documentation: https://docs.dagger.io/
+Check the official Dagger Module documentation: https://docs.dagger.io/api/module-structure
 
 The [Dagger CLI](https://docs.dagger.io/cli) is needed.
 
@@ -27,14 +27,16 @@ List all functions of the module. This command is provided by the [Dagger CLI](h
 dagger functions -m ./pitc-flow/
 ```
 
-The pitc-flow module is referenced locally.
-
 ## Development
 
 Basic development guide.
 
-### Update the Dagger module
+### Setup/update Dagger module
 
 ```bash
-dagger -m pitc-flow/ develop
+dagger -m ./pitc-flow/ develop
 ```
+
+## Contributors
+
+Please add `gofmt -s -w .` to your `.git/hooks/pre-commit` hook.
