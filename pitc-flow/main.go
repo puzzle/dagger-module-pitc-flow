@@ -334,6 +334,77 @@ func (m *PitcFlow) Ci(
 	)
 }
 
+func (m *PitcFlow) Cii(
+	ctx context.Context,
+	// source directory
+	dir *dagger.Directory,
+	// interface implementation
+	face Face,
+) (*dagger.Directory, error) {
+	var wg sync.WaitGroup
+	var lintReports *dagger.Directory
+	var securityReports *dagger.Directory
+	var testReports *dagger.Directory
+	var integrationTestReports *dagger.Directory
+
+	wg.Add(1)
+	lintReports = func() *dagger.Directory {
+		defer wg.Done()
+		return face.Lint(dir, true)
+	}()
+
+	wg.Add(1)
+	securityReports = func() *dagger.Directory {
+		defer wg.Done()
+		return face.Sast(dir)
+	}()
+
+	wg.Add(1)
+	testReports = func() *dagger.Directory {
+		defer wg.Done()
+		return face.Test(dir)
+	}()
+
+	wg.Add(1)
+	integrationTestReports = func() *dagger.Directory {
+		defer wg.Done()
+		return face.IntegrationTest(dir)
+	}()
+
+	wg.Add(1)
+	var vulnerabilityScan = func() *dagger.File {
+		defer wg.Done()
+		return face.Vulnscan(m.sbomBuild(ctx, dir))
+	}()
+	// This Blocks the execution until its counter become 0
+	wg.Wait()
+
+	vulnerabilityScanName, err := vulnerabilityScan.Name(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	result_container := dag.Container().WithWorkdir("/tmp/out")
+
+	result_container = result_container.WithDirectory("/tmp/out/lint/", lintReports)
+
+	result_container = result_container.WithDirectory("/tmp/out/scan/", securityReports)
+
+	result_container = result_container.WithDirectory("/tmp/out/unit-tests/", testReports)
+
+	result_container = result_container.WithDirectory("/tmp/out/integration-tests/", integrationTestReports)
+
+	errorString := ""
+	if err != nil {
+		errorString = err.Error()
+	}
+
+	return result_container.
+		WithFile(fmt.Sprintf("/tmp/out/vuln/%s", vulnerabilityScanName), vulnerabilityScan).
+		WithNewFile("/tmp/out/status.txt", errorString).
+		Directory("."), err
+}
+
 // Verifies if the run was succesful and returns the error messages
 func (m *PitcFlow) Verify(
 	ctx context.Context,
