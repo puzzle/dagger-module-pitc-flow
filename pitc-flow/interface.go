@@ -7,11 +7,7 @@ import (
 type Face interface {
 	DaggerObject
 	Vulnscan(sbom *dagger.File) *dagger.File
-	Lint(dir *dagger.Directory,
-		// +optional
-		// +default=false
-		pass bool,
-	) *dagger.Directory
+	Lint(dir *dagger.Directory) *dagger.Directory
 	Sast(dir *dagger.Directory) *dagger.Directory
 	Test(dir *dagger.Directory) *dagger.Directory
 	IntegrationTest(dir *dagger.Directory) *dagger.Directory
@@ -28,11 +24,9 @@ func (m *PitcFlow) Vulnscan(
 // Lints the sources in the provided Directory and returns a directory with the results (default implementation)
 func (m *PitcFlow) Lint(
 	dir *dagger.Directory,
-	// must not be optional here!
-	pass bool,
 	face Face,
 ) *dagger.Directory {
-	return face.Lint(dir, pass)
+	return face.Lint(dir)
 }
 
 // Returns a file containing the results of the security scan

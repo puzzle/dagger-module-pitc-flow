@@ -350,7 +350,7 @@ func (m *PitcFlow) Cii(
 	wg.Add(1)
 	lintReports = func() *dagger.Directory {
 		defer wg.Done()
-		return face.Lint(dir, true)
+		return face.Lint(dir)
 	}()
 
 	wg.Add(1)
