@@ -334,6 +334,38 @@ func (m *PitcFlow) Ci(
 	)
 }
 
+// Executes all the CI steps (no publishing) and returns a directory with the results (interface variant)
+func (m *PitcFlow) Cii(
+	ctx context.Context,
+	// source directory
+	dir *dagger.Directory,
+	// directory containing the lint results
+	lintReports *dagger.Directory,
+	// directory containing the security scan results
+    securityReports *dagger.Directory,
+    // diredctory containing the test results
+    testReports *dagger.Directory,
+    // directory containing the integration test results
+    integrationTestReports *dagger.Directory,
+) (*dagger.Directory, error) {
+
+	result_container := dag.Container().WithWorkdir("/tmp/out")
+	result_container = result_container.WithDirectory("/tmp/out/lint/", lintReports)
+	result_container = result_container.WithDirectory("/tmp/out/scan/", securityReports)
+	result_container = result_container.WithDirectory("/tmp/out/unit-tests/", testReports)
+	result_container = result_container.WithDirectory("/tmp/out/integration-tests/", integrationTestReports)
+
+    var err error
+	errorString := ""
+	if err != nil {
+		errorString = err.Error()
+	}
+
+	return result_container.
+		WithNewFile("/tmp/out/status.txt", errorString).
+		Directory("."), err
+}
+
 // Verifies if the run was succesful and returns the error messages
 func (m *PitcFlow) Verify(
 	ctx context.Context,
