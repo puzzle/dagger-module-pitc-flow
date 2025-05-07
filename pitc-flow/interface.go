@@ -6,38 +6,53 @@ import (
 
 type Face interface {
 	DaggerObject
-//	Vulnscan(sbom *dagger.File) *dagger.File
-	Lint(dir *dagger.Directory) *dagger.Directory
-//	Sast(dir *dagger.Directory) *dagger.Directory
+	Lint(
+		dir *dagger.Directory,
+		// +optional
+		// +default=false
+		pass bool,
+	) *dagger.Directory
+	DoLint(ctx context.Context) (bool, error)
+	SecurityScan(dir *dagger.Directory) *dagger.Directory
+	DoSecurityScan(ctx context.Context) (bool, error)
 	Test(dir *dagger.Directory) *dagger.Directory
-//	IntegrationTest(dir *dagger.Directory) *dagger.Directory
+	DoTest(ctx context.Context) (bool, error)
+	IntegrationTest(dir *dagger.Directory) *dagger.Directory
+	DoIntegrationTest(ctx context.Context) (bool, error)
 }
 
-// Scans the SBOM for vulnerabilities and returns the report file (default implementation)
-/* func (m *PitcFlow) Vulnscan(
-	sbom *dagger.File,
-	face Face,
-) *dagger.File {
-	return face.Vulnscan(sbom)
-} */
-
-// Lints the sources in the provided Directory and returns a directory with the results (default implementation)
+// Lints the sources and returns a directory with the results (default implementation)
 func (m *PitcFlow) Lint(
 	dir *dagger.Directory,
+	pass bool,
 	face Face,
 ) *dagger.Directory {
-	return face.Lint(dir)
+	return face.Lint(dir, pass)
 }
 
-// Returns a file containing the results of the security scan
-/* func (m *PitcFlow) Sast(
+func (m *PitcFlow) DoLint(
+	ctx context.Context,
+	face Face,
+) (bool, error) {
+	return face.DoLint(ctx)
+}
+
+// Runs security scan and returns a directory with the results (default implementation)
+func (m *PitcFlow) SecurityScan(
 	dir *dagger.Directory,
 	face Face,
 ) *dagger.Directory {
-	return face.Sast(dir)
-} */
+	return face.SecurityScan(dir)
+}
 
-// Runs unit tests in the provided Directory and returns a directory with the results (default implementation)
+func (m *PitcFlow) DoSecurityScan(
+	ctx context.Context,
+	face Face,
+) (bool, error) {
+	return face.DoSecurityScan(ctx)
+}
+
+// Runs unit tests and returns a directory with the results (default implementation)
 func (m *PitcFlow) Test(
 	dir *dagger.Directory,
 	face Face,
@@ -45,10 +60,24 @@ func (m *PitcFlow) Test(
 	return face.Test(dir)
 }
 
-// Runs integration tests in the provided Directory and returns a directory with the results (default implementation)
-/* func (m *PitcFlow) IntegrationTest(
+func (m *PitcFlow) DoTest(
+	ctx context.Context,
+	face Face,
+) (bool, error) {
+	return face.DoTest(ctx)
+}
+
+// Runs integration tests and returns a directory with the results (default implementation)
+func (m *PitcFlow) IntegrationTest(
 	dir *dagger.Directory,
 	face Face,
 ) *dagger.Directory {
 	return face.IntegrationTest(dir)
-} */
+}
+
+func (m *PitcFlow) DoIntegrationTest(
+	ctx context.Context,
+	face Face,
+) (bool, error) {
+	return face.DoIntegrationTest(ctx)
+}

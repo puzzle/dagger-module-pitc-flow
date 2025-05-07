@@ -340,60 +340,65 @@ func (m *PitcFlow) Cii(
 	dir *dagger.Directory,
 	// interface implementation
 	face Face,
+	//+optional
+	pass bool,
 ) (*dagger.Directory, error) {
 	var wg sync.WaitGroup
 	var lintReports *dagger.Directory
-//	var securityReports *dagger.Directory
+	var securityReports *dagger.Directory
 	var testReports *dagger.Directory
-//	var integrationTestReports *dagger.Directory
+	var integrationTestReports *dagger.Directory
+	var err error
+	doLint, _ = face.DoLint(ctx)
+	doSecurityScan, _ = face.DoSecurityScan(ctx)
+	doTest, _ = face.DoTest(ctx)
+	doIntegrationTest, _ = face.DoIntegrationTest(ctx)
 
-	wg.Add(1)
-	lintReports = func() *dagger.Directory {
-		defer wg.Done()
-		return face.Lint(dir)
-	}()
-
-/* 	wg.Add(1)
-	securityReports = func() *dagger.Directory {
-		defer wg.Done()
-		return face.Sast(dir)
-	}() */
-
-	wg.Add(1)
-	testReports = func() *dagger.Directory {
-		defer wg.Done()
-		return face.Test(dir)
-	}()
-
-/* 	wg.Add(1)
-	integrationTestReports = func() *dagger.Directory {
-		defer wg.Done()
-		return face.IntegrationTest(dir)
-	}()
-
-	wg.Add(1)
-	var vulnerabilityScan = func() *dagger.File {
-		defer wg.Done()
-		return face.Vulnscan(m.sbomBuild(ctx, dir))
-	}() */
+	if doLint {
+		wg.Add(1)
+		lintReports = func() *dagger.Directory {
+			defer wg.Done()
+			return face.Lint(dir, pass)
+		}()
+	}
+	if doSecurityScan {
+		wg.Add(1)
+		securityReports = func() *dagger.Directory {
+			defer wg.Done()
+			return face.SecurityScan(dir)
+		}()
+	}
+	if doTest {
+		wg.Add(1)
+		testReports = func() *dagger.Directory {
+			defer wg.Done()
+			return face.Test(dir)
+		}()
+	}
+	if doIntegrationTest {
+		wg.Add(1)
+		integrationTestReports = func() *dagger.Directory {
+			defer wg.Done()
+			return face.IntegrationTest(dir)
+		}()
+	}
 	// This Blocks the execution until its counter become 0
 	wg.Wait()
 
-/* 	vulnerabilityScanName, err := vulnerabilityScan.Name(ctx)
-	if err != nil {
-		return nil, err
-	} */
-	var err error
-
 	result_container := dag.Container().WithWorkdir("/tmp/out")
 
-	result_container = result_container.WithDirectory("/tmp/out/lint/", lintReports)
-
-	//result_container = result_container.WithDirectory("/tmp/out/scan/", securityReports)
-
-	result_container = result_container.WithDirectory("/tmp/out/unit-tests/", testReports)
-
-	//result_container = result_container.WithDirectory("/tmp/out/integration-tests/", integrationTestReports)
+	if doLint {
+		result_container = result_container.WithDirectory("/tmp/out/lint/", lintReports)
+	}
+	if doSecurityScan {
+		result_container = result_container.WithDirectory("/tmp/out/scan/", securityReports)
+	}
+	if doTest {
+		result_container = result_container.WithDirectory("/tmp/out/unit-tests/", testReports)
+	}
+	if doIntegrationTest {
+		result_container = result_container.WithDirectory("/tmp/out/integration-tests/", integrationTestReports)
+	}
 
 	errorString := ""
 	if err != nil {
