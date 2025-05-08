@@ -6,10 +6,7 @@ import (
 
 type Face interface {
 	DaggerObject
-	Lint(dir *dagger.Directory,
-		//+optional
-		//+default false
-		pass bool) *dagger.Directory
+	Lint(dir *dagger.Directory, pass bool) *dagger.Directory
 	SecurityScan(dir *dagger.Directory) *dagger.Directory
 	Test(dir *dagger.Directory) *dagger.Directory
 	IntegrationTest(dir *dagger.Directory) *dagger.Directory

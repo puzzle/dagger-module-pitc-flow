@@ -555,8 +555,6 @@ func (m *PitcFlow) Cii(
 	face Face,
 	// configuration
 	config Config,
-	//+optional
-	pass bool,
 ) (*dagger.Directory, error) {
 	var wg sync.WaitGroup
 	var lintReports *dagger.Directory
@@ -569,7 +567,7 @@ func (m *PitcFlow) Cii(
 		wg.Add(1)
 		lintReports = func() *dagger.Directory {
 			defer wg.Done()
-			return face.Lint(dir, pass)
+			return face.Lint(dir, config.IgnoreLintFailure)
 		}()
 	}
 	if config.DoSecurityScan {
