@@ -17,11 +17,11 @@ import (
 type PitcFlow struct{}
 
 type Config struct {
-	DoLint            bool
-	DoSecurityScan    bool
-	DoTest            bool
-	DoIntegrationTest bool
-	IgnoreLintFailure bool
+	doLint            bool
+	doSecurityScan    bool
+	doTest            bool
+	doIntegrationTest bool
+	ignoreLintFailure bool
 }
 
 // Executes only the desired steps and returns a directory with the results
@@ -373,10 +373,10 @@ func (m *PitcFlow) Flexi(
 	appContainer *dagger.Container,
 ) (*dagger.Directory, error) {
 
-	doLint := config.DoLint
-	doSast := config.DoSecurityScan
-	doTest := config.DoTest
-	doIntTest := config.DoIntegrationTest
+	doLint := config.doLint
+	doSast := config.doSecurityScan
+	doTest := config.doTest
+	doIntTest := config.doIntegrationTest
 	doBuild := appContainer == nil
 
 	var wg sync.WaitGroup
@@ -389,7 +389,7 @@ func (m *PitcFlow) Flexi(
 		wg.Add(1)
 		lintReports = func() *dagger.Directory {
 			defer wg.Done()
-			return face.Lint(dir, config.IgnoreLintFailure)
+			return face.Lint(dir, config.ignoreLintFailure)
 		}()
 	}
 	if doSast {
@@ -563,28 +563,28 @@ func (m *PitcFlow) Cii(
 	var integrationTestReports *dagger.Directory
 	var err error
 
-	if config.DoLint {
+	if config.doLint {
 		wg.Add(1)
 		lintReports = func() *dagger.Directory {
 			defer wg.Done()
-			return face.Lint(dir, config.IgnoreLintFailure)
+			return face.Lint(dir, config.ignoreLintFailure)
 		}()
 	}
-	if config.DoSecurityScan {
+	if config.doSecurityScan {
 		wg.Add(1)
 		securityReports = func() *dagger.Directory {
 			defer wg.Done()
 			return face.SecurityScan(dir)
 		}()
 	}
-	if config.DoTest {
+	if config.doTest {
 		wg.Add(1)
 		testReports = func() *dagger.Directory {
 			defer wg.Done()
 			return face.Test(dir)
 		}()
 	}
-	if config.DoIntegrationTest {
+	if config.doIntegrationTest {
 		wg.Add(1)
 		integrationTestReports = func() *dagger.Directory {
 			defer wg.Done()
@@ -596,16 +596,16 @@ func (m *PitcFlow) Cii(
 
 	result_container := dag.Container().WithWorkdir("/tmp/out")
 
-	if config.DoLint {
+	if config.doLint {
 		result_container = result_container.WithDirectory("/tmp/out/lint/", lintReports)
 	}
-	if config.DoSecurityScan {
+	if config.doSecurityScan {
 		result_container = result_container.WithDirectory("/tmp/out/scan/", securityReports)
 	}
-	if config.DoTest {
+	if config.doTest {
 		result_container = result_container.WithDirectory("/tmp/out/unit-tests/", testReports)
 	}
-	if config.DoIntegrationTest {
+	if config.doIntegrationTest {
 		result_container = result_container.WithDirectory("/tmp/out/integration-tests/", integrationTestReports)
 	}
 
