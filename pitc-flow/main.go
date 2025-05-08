@@ -21,6 +21,7 @@ type Config struct {
 	DoSecurityScan    bool
 	DoTest            bool
 	DoIntegrationTest bool
+	IgnoreLintFailure bool
 }
 
 // Executes only the desired steps and returns a directory with the results
@@ -372,10 +373,10 @@ func (m *PitcFlow) Flexi(
 	appContainer *dagger.Container,
 ) (*dagger.Directory, error) {
 
-	doLint := config.doLint
-	doSast := config.doSecurityScan
-	doTest := config.doTest
-	doIntTest := config.doIntegrationTest
+	doLint := config.DoLint
+	doSast := config.DoSecurityScan
+	doTest := config.DoTest
+	doIntTest := config.DoIntegrationTest
 	doBuild := appContainer == nil
 
 	var wg sync.WaitGroup
@@ -388,7 +389,7 @@ func (m *PitcFlow) Flexi(
 		wg.Add(1)
 		lintReports = func() *dagger.Directory {
 			defer wg.Done()
-			return face.Lint(dir, pass)
+			return face.Lint(dir, config.IgnoreLintFailure)
 		}()
 	}
 	if doSast {
