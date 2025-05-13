@@ -4,7 +4,7 @@ import (
 	"dagger/pitc-flow/internal/dagger"
 )
 
-type Linting interface {
+type Linter interface {
 	DaggerObject
 	Lint(dir *dagger.Directory,
 		// +optional
@@ -13,17 +13,17 @@ type Linting interface {
 	) *dagger.Directory
 }
 
-type SecurityScanning interface {
+type SecurityScanner interface {
 	DaggerObject
 	SecurityScan(dir *dagger.Directory) *dagger.Directory
 }
 
-type Testing interface {
+type Tester interface {
 	DaggerObject
 	Test(dir *dagger.Directory) *dagger.Directory
 }
 
-type IntegrationTesting interface {
+type IntegrationTester interface {
 	DaggerObject
 	IntegrationTest(dir *dagger.Directory) *dagger.Directory
 }
@@ -33,7 +33,7 @@ func (m *PitcFlow) Lint(
 	dir *dagger.Directory,
 	// must not be optional here!
 	pass bool,
-	face Linting,
+	face Linter,
 ) *dagger.Directory {
 	return face.Lint(dir, pass)
 }
@@ -41,7 +41,7 @@ func (m *PitcFlow) Lint(
 // Runs a security scan in the provided directory and returns a directory with the results (default implementation)
 func (m *PitcFlow) SecurityScan(
 	dir *dagger.Directory,
-	face SecurityScanning,
+	face SecurityScanner,
 ) *dagger.Directory {
 	return face.SecurityScan(dir)
 }
@@ -49,7 +49,7 @@ func (m *PitcFlow) SecurityScan(
 // Runs unit tests in the provided directory and returns a directory with the results (default implementation)
 func (m *PitcFlow) Test(
 	dir *dagger.Directory,
-	face Testing,
+	face Tester,
 ) *dagger.Directory {
 	return face.Test(dir)
 }
@@ -57,7 +57,7 @@ func (m *PitcFlow) Test(
 // Runs integration tests in the provided directory and returns a directory with the results (default implementation)
 func (m *PitcFlow) IntegrationTest(
 	dir *dagger.Directory,
-	face IntegrationTesting,
+	face IntegrationTester,
 ) *dagger.Directory {
 	return face.IntegrationTest(dir)
 }
