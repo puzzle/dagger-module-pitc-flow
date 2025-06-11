@@ -2,6 +2,9 @@ name: Dagger test
 
 on:
   push:
+    branches:
+      - main
+  pull_request:
 
 env:
   # The Dagger CLI uses the DAGGER_CLOUD_TOKEN environment variable to authenticate with Dagger Cloud
