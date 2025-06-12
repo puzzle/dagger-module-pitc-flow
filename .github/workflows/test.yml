@@ -5,6 +5,8 @@ on:
     branches:
       - main
   pull_request:
+  # configure manual trigger
+  workflow_dispatch:
 
 env:
   # The Dagger CLI uses the DAGGER_CLOUD_TOKEN environment variable to authenticate with Dagger Cloud
